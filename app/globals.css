@@ -1,0 +1,20 @@
+@import "tailwindcss";
+
+/* ครอบแค่ใน html[data-nextjs] = เว็บของ Next.js เท่านั้น */
+html[data-nextjs] {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@media (prefers-color-scheme: dark) {
+  html[data-nextjs] {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+html[data-nextjs] body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
