@@ -1,15 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation"; // <<== เพิ่มตรงนี้
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
 
 export default function LoginPage() {
-  const router = useRouter(); // <<== เพิ่มตรงนี้
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
+
+  // ตอนโหลดหน้า → ลองโหลด email/pass จาก localStorage
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("quizcat-email");
+    const savedPass = localStorage.getItem("quizcat-pass");
+    if (savedEmail && savedPass) {
+      setEmail(savedEmail);
+      setPassword(savedPass);
+      setRememberMe(true);
+    }
+  }, []);
+
+  const saveLogin = () => {
+    if (rememberMe) {
+      localStorage.setItem("quizcat-email", email);
+      localStorage.setItem("quizcat-pass", password);
+    } else {
+      localStorage.removeItem("quizcat-email");
+      localStorage.removeItem("quizcat-pass");
+    }
+  };
 
   const handleRegister = async () => {
     try {
@@ -22,13 +44,14 @@ export default function LoginPage() {
         role: "kid",
         createdAt: new Date(),
         theme: {
-          bgColor: "#000000",     // พื้นหลังเริ่มต้น (ดำ)
-          textColor: "#ffffff"     // ตัวหนังสือเริ่มต้น (ขาว)
-        }
+          bgColor: "#000000",
+          textColor: "#ffffff",
+        },
       });
 
+      saveLogin();
       alert("สมัครเรียบร้อย! เข้าระบบแล้วนะ");
-      router.push("/dashboard"); // <<== เพิ่มตรงนี้
+      router.push("/dashboard");
     } catch (err) {
       alert("สมัครไม่ผ่าน: " + err.message);
     }
@@ -37,8 +60,9 @@ export default function LoginPage() {
   const handleLogin = async () => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      saveLogin();
       alert("เข้าสู่ระบบสำเร็จ!");
-      router.push("/dashboard"); // <<== เพิ่มตรงนี้
+      router.push("/dashboard");
     } catch (err) {
       alert("เข้าสู่ระบบไม่ผ่าน: " + err.message);
     }
@@ -61,8 +85,18 @@ export default function LoginPage() {
         placeholder="รหัสผ่าน"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        className="border p-2 mb-4 w-full max-w-xs"
+        className="border p-2 mb-2 w-full max-w-xs"
       />
+
+      <label className="mb-4 text-sm">
+        <input
+          type="checkbox"
+          checked={rememberMe}
+          onChange={(e) => setRememberMe(e.target.checked)}
+          className="mr-2"
+        />
+        จำฉันไว้ด้วย (จำอีเมลกับรหัสผ่าน)
+      </label>
 
       <div className="flex space-x-4">
         <button onClick={handleLogin} className="bg-blue-500 text-white px-4 py-2 rounded">
