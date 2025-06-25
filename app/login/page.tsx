@@ -52,8 +52,8 @@ export default function LoginPage() {
       saveLogin();
       alert("สมัครเรียบร้อย! เข้าระบบแล้วนะ");
       router.push("/dashboard");
-    } catch (err) {
-      alert("สมัครไม่ผ่าน: " + err.message);
+    } catch (err: any) {
+      alert("สมัครไม่ผ่าน: " + err.message)
     }
   };
 
@@ -63,7 +63,7 @@ export default function LoginPage() {
       saveLogin();
       alert("เข้าสู่ระบบสำเร็จ!");
       router.push("/dashboard");
-    } catch (err) {
+    } catch (err: any) {
       alert("เข้าสู่ระบบไม่ผ่าน: " + err.message);
     }
   };
