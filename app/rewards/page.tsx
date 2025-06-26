@@ -7,6 +7,7 @@ import Image from "next/image"
 import ThemedLayout from "@/components/ThemedLayout"
 
 
+
 export default function RewardsPage() {
   const [user, setUser] = useState<any>(null)
   const [userPoints, setUserPoints] = useState(0)
@@ -71,7 +72,9 @@ export default function RewardsPage() {
           แต้มของคุณ: <span className="text-red-600">{userPoints}</span>
         </p>
 
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
           {rewards.map((r) => {
             const expired = isExpired(r)
             const canClaim = userPoints >= r.cost && !expired

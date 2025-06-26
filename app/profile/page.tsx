@@ -16,6 +16,7 @@ export default function ProfilePage() {
   const [editingAvatarUrl, setEditingAvatarUrl] = useState("")
   const [isEditing, setIsEditing] = useState(false)
   const [userStatus, setUserStatus] = useState("offline")
+  const [loading, setLoading] = useState(true) // ✅ เพิ่ม loading state
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -30,19 +31,21 @@ export default function ProfilePage() {
 
       if (snap.exists()) {
         const data = snap.data()
-        setName(data.name || "")
+        setName(data.name || "ไม่ระบุชื่อ")
         setAvatarUrl(data.avatarUrl || "")
         setUserStatus(data.status || "offline")
       } else {
         await setDoc(userRef, {
-          name: user.email,
+          name: user.email ?? "ไม่ระบุชื่อ",
           avatarUrl: "",
           status: "online",
           points: 0,
         })
-        setName(user.email ?? "")
+        setName(user.email ?? "ไม่ระบุชื่อ")
         setUserStatus("online")
       }
+
+      setLoading(false) // ✅ โหลดเสร็จแล้ว
     })
 
     return () => unsubscribe()
@@ -66,10 +69,10 @@ export default function ProfilePage() {
     setIsEditing(false)
   }
 
-  if (!name) {
+  if (loading) {
     return (
       <ThemedLayout>
-        <div className="p-6 text-center">กำลังโหลดโปรไฟล์...</div>
+        <div className="p-6 text-center">⏳ กำลังโหลดโปรไฟล์...</div>
       </ThemedLayout>
     )
   }

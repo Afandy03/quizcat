@@ -2,14 +2,14 @@
 
 /* ครอบแค่ใน html[data-nextjs] = เว็บของ Next.js เท่านั้น */
 html[data-nextjs] {
-  --background: #67e049;
+  --background: #ffffff;
   --foreground: #171717;
 }
 
 @media (prefers-color-scheme: dark) {
   html[data-nextjs] {
     --background: #0a0a0a;
-    --foreground: #4ec42a;
+    --foreground: #ffffff;
   }
 }
 

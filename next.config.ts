@@ -6,12 +6,12 @@ const nextConfig: NextConfig = {
       {
         protocol: "https",
         hostname: "spgeng.rosselcdn.net",
-        pathname: "**", // อนุญาตทุก path
+        pathname: "**", // ✅ อนุญาตโหลดรูปจากทุก path ของโดเมนนี้
       },
       {
         protocol: "https",
         hostname: "i.pinimg.com",
-        pathname: "**",
+        pathname: "**", // ✅ fallback image จาก Pinterest
       }
     ],
   },
