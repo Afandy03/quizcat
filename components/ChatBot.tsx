@@ -55,15 +55,25 @@ export default function ChatBot({
           e.preventDefault();
           if (!chatInput.trim()) return;
 
+
+
+          {/* แก้พรอมตรงนี้ */}
+
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              systemPrompt: "คุณคือบังฟันดี้ พี่ติวเตอร์ที่ช่วยเด็ก ป.4-6 ทำข้อสอบแบบเข้าใจ ไม่พูดภาษาครู ไม่ใช้คำทางการ ไม่เอาคำตอบทันที แต่จะค่อยๆ พาเด็กคิดเหมือนพี่ติวให้ เช่น ชวนดูตัวเลือก ชวนเปรียบเทียบ หรือโยนคำถามกลับเบาๆ พูดเหมือนมนุษย์ ไม่เป็นหุ่นยนต์ ไม่เอา 'คุณ' ไม่เอา 'หัวอกนะลูก",
               question,
               choices,
               userMessage: chatInput,
             }),
           });
+
+
+          {/* พรอมพจบบรรทัดนี้*/}
+
+
 
           const data = await res.json();
           setChatLog((prev) => [
