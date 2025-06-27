@@ -11,91 +11,85 @@ import {
   increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import { normalizeKey } from "@/lib/normalizeKey";
 
 interface Props {
   user: any;
-  onScoreUpdate?: (score: number) => void;
-  onAnswered?: () => void;
 }
 
-export default function useAnswerQuestion({ user, onScoreUpdate, onAnswered }: Props) {
+export default function useAnswerQuestion({ user }: Props) {
   const [loading, setLoading] = useState(false);
-  const [lastElapsed, setLastElapsed] = useState<number | null>(null);
 
   const answer = async ({
     question,
     selectedIndex,
     confidenceLevel,
-    timeStart,
-    currentScore,
+    correct,
+    timeStart, // ✅ รับเวลาที่เริ่มทำข้อสอบเข้ามา
   }: {
     question: any;
     selectedIndex: number;
     confidenceLevel: "confident" | "not_confident" | "guess";
-    timeStart: number;
-    currentScore: number;
+    correct?: boolean;
+    timeStart: number; // ✅ เป็น Date.now() จากหน้าทำข้อสอบ
   }) => {
-    if (!user) return;
+    if (!user?.uid) return;
 
     setLoading(true);
 
-    const correct = selectedIndex === question.correctIndex;
-    const elapsed = Math.floor((Date.now() - timeStart) / 1000);
-    setLastElapsed(elapsed);
+    try {
+      const alreadyAnsweredQuery = query(
+        collection(db, "user_answers"),
+        where("userId", "==", user.uid),
+        where("questionId", "==", question.id)
+      );
+      const alreadyAnswered = await getDocs(alreadyAnsweredQuery);
 
-    const alreadyAnsweredQuery = query(
-      collection(db, "user_answers"),
-      where("userId", "==", user.uid),
-      where("questionId", "==", question.id)
-    );
+      if (alreadyAnswered.empty) {
+        // ✅ fallback + validation
+        const correctValue =
+          typeof correct === "boolean"
+            ? correct
+            : selectedIndex === question.correctIndex;
 
-    const alreadyAnswered = await getDocs(alreadyAnsweredQuery);
+        // ✅ คำนวณเวลาที่ใช้จาก timeStart
+        const elapsed = Math.floor((Date.now() - timeStart) / 1000);
+        const safeTimeSpent = elapsed >= 0 && elapsed <= 3600 ? elapsed : 0;
 
-    const newAnswer = {
-      userId: user.uid,
-      questionId: question.id,
-      subject: question.subject,
-      topic: question.topic,
-      correct,
-      score: correct ? 1 : 0, // ✅ เพิ่ม score
-      timeSpent: elapsed,     // ✅ ใช้ชื่อให้ตรงกับ Analysis
-      confidenceLevel,
-      createdAt: serverTimestamp(),
-    };
+        const newAnswer = {
+          userId: user.uid,
+          questionId: question.id ?? "unknown",
+          subject: question.subject ?? "ไม่ระบุ",
+          topic: question.topic ?? "ไม่ระบุ",
+          normalizedKey: normalizeKey(question.subject, question.topic),
+          correct: correctValue,
+          score: correctValue ? 1 : 0,
+          timeSpent: safeTimeSpent, // ✅ ใช้เวลาแบบ real
+          confidenceLevel: confidenceLevel ?? "not_confident",
+          createdAt: serverTimestamp(),
 
-    if (alreadyAnswered.empty) {
-      await addDoc(collection(db, "user_answers"), newAnswer);
+          // 👉 สำหรับวิเคราะห์เพิ่มเติม
+          selectedIndex: typeof selectedIndex === "number" ? selectedIndex : -1,
+          choices: Array.isArray(question.choices) ? question.choices : [],
+          questionText: question.question ?? "",
+        };
 
-      // ✅ อัปเดตแต้มใน Firestore
-      if (correct) {
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, { points: increment(10) });
-        onScoreUpdate?.(currentScore + 10);
+        await addDoc(collection(db, "user_answers"), newAnswer);
+
+        if (correctValue) {
+          const userRef = doc(db, "users", user.uid);
+          await updateDoc(userRef, { points: increment(10) });
+        }
       }
-
-      // ✅ เก็บลง localStorage ด้วย
-      const localAnswer = {
-        question: question.question,
-        answer: question.choices?.[selectedIndex],
-        correct,
-        subject: question.subject,
-        topic: question.topic,
-        score: correct ? 1 : 0,
-        timeSpent: elapsed,
-        type: question.type,
-      };
-
-      const existing = JSON.parse(localStorage.getItem("answers") || "[]");
-      localStorage.setItem("answers", JSON.stringify([...existing, localAnswer]));
+    } catch (error) {
+      console.error("❌ Error saving answer:", error);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    onAnswered?.();
   };
 
   return {
     answer,
     loading,
-    elapsedAfterAnswer: lastElapsed,
   };
 }

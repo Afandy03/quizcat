@@ -1,3 +1,4 @@
+// components/SummaryChart.tsx
 "use client"
 
 import {
@@ -10,20 +11,15 @@ import {
   CartesianGrid,
   LabelList,
 } from "recharts"
+import { SummaryData } from "@/types" // 👈 1. Import 'SummaryData' จากไฟล์กลาง
 
-type SummaryChartProps = {
-  data: {
-    section: string
-    correct: number
-    total: number
-    guess: number
-    not_confident: number
-    confident: number
-    percent: number
-  }[]
+// 2. กำหนดให้ props 'data' ใช้ Type 'SummaryData[]' ที่เรา import มา
+interface SummaryChartProps {
+  data: SummaryData[]
 }
 
 export default function SummaryChart({ data }: SummaryChartProps) {
+  // ส่วน JSX ด้านล่างนี้ดีอยู่แล้ว ไม่ต้องแก้ไขครับ
   return (
     <div className="bg-white p-4 rounded shadow border">
       <h2 className="text-lg font-semibold mb-2">📈 เปรียบเทียบเปอร์เซ็นต์ความเข้าใจ</h2>
@@ -34,7 +30,7 @@ export default function SummaryChart({ data }: SummaryChartProps) {
           <YAxis />
           <Tooltip />
           <Bar dataKey="percent" fill="#8884d8">
-            <LabelList dataKey="percent" position="top" />
+            <LabelList dataKey="percent" position="top" formatter={(value) => `${value}%`} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>

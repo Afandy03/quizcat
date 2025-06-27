@@ -1,4 +1,5 @@
 "use client"
+import { useRef, useEffect } from "react"
 /**
  * QuestionRow
  * Props:
@@ -36,6 +37,14 @@ export default function QuestionRow({
   onMouseOver,
   onMouseUp,
 }: QuestionRowProps) {
+  // เริ่มจับเวลาเมื่อ component โหลดคำถาม
+  const timeStart = useRef<number>(Date.now())
+
+  // รีเซ็ตเวลาเริ่มต้นทุกครั้งที่โจทย์เปลี่ยน
+  useEffect(() => {
+    timeStart.current = Date.now()
+  }, [question])
+
   const preview = question.question.length > 50
     ? question.question.slice(0, 50) + "..."
     : question.question
@@ -55,14 +64,10 @@ export default function QuestionRow({
         />
       </td>
       <td className="border px-2">{preview}</td>
-      <td className="border px-2">
-        {question.subject || "-"} / {question.topic || "-"}
-      </td>
+      <td className="border px-2">{question.subject || "-"} / {question.topic || "-"}</td>
       <td className="border px-2">{question.grade ?? "-"}</td>
       <td className="border px-2">{question.choices.join(", ")}</td>
-      <td className="border px-2">
-        {question.choices[question.correctIndex] || "-"}
-      </td>
+      <td className="border px-2">{question.choices[question.correctIndex] || "-"}</td>
     </tr>
   )
 }

@@ -1,3 +1,4 @@
+// app/analysis/page.tsx
 'use client'
 
 import ThemedLayout from "@/components/ThemedLayout"
@@ -5,54 +6,29 @@ import { useState, useMemo } from "react"
 import { useFetchAnswers } from "@/hooks/useFetchAnswers"
 import SummaryChart from "@/components/SummaryChart"
 import AnswerSection from "@/components/AnswerSection"
+import { normalizeKey } from "@/lib/normalizeKey"
+import { formatTime } from "@/lib/formatters"
 
 export default function AnalysisPage() {
-  const { answers, summary, loading, deleteAnswer } = useFetchAnswers()
+  const { answers, summary, insights, loading, deleteAnswer } = useFetchAnswers()
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
   const toggleExpand = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section)
   }
 
-  // 🧠 สถิติพื้นฐานแบบจัดเต็ม
-  const stats = useMemo(() => {
-    if (answers.length === 0) return null
+  const answersBySection = useMemo(() => {
+    if (answers.length === 0) return {}
 
-    const total = answers.length
-    const avgScore = answers.reduce((sum, a) => sum + (a.score || 0), 0) / total
-    const avgTime = answers.reduce((sum, a) => sum + (a.timeSpent || 0), 0) / total
-
-    const scoreByTopic: Record<string, number[]> = {}
-    const timeByTopic: Record<string, number> = {}
-    const countByTopic: Record<string, number> = {}
-
-    for (const a of answers) {
-      const key = `${a.subject?.trim() || "ไม่ระบุ"} / ${a.topic?.trim() || "ไม่ระบุ"}`
-      scoreByTopic[key] = scoreByTopic[key] || []
-      timeByTopic[key] = (timeByTopic[key] || 0) + (a.timeSpent || 0)
-      countByTopic[key] = (countByTopic[key] || 0) + 1
-      if (a.score !== undefined) scoreByTopic[key].push(a.score)
+    const grouped: Record<string, any[]> = {}
+    for (const ans of answers) {
+      const key = normalizeKey(ans.subject, ans.topic)
+      if (!grouped[key]) {
+        grouped[key] = []
+      }
+      grouped[key].push(ans)
     }
-
-    const avgScoreByTopic = Object.entries(scoreByTopic).map(([topic, scores]) => ({
-      topic,
-      avg: scores.reduce((s, v) => s + v, 0) / scores.length
-    }))
-    const weak = avgScoreByTopic.sort((a, b) => a.avg - b.avg)[0]
-    const strong = avgScoreByTopic.sort((a, b) => b.avg - a.avg)[0]
-
-    const mostAnswered = Object.entries(countByTopic).sort((a, b) => b[1] - a[1])[0]
-    const mostTimeSpent = Object.entries(timeByTopic).sort((a, b) => b[1] - a[1])[0]
-
-    return {
-      total,
-      avgScore: avgScore.toFixed(2),
-      avgTime: avgTime.toFixed(1),
-      strong,
-      weak,
-      mostAnswered,
-      mostTimeSpent
-    }
+    return grouped
   }, [answers])
 
   return (
@@ -62,30 +38,26 @@ export default function AnalysisPage() {
 
         {loading ? (
           <p className="text-center text-gray-500">กำลังโหลด...</p>
-        ) : summary.length === 0 ? (
-          <p className="text-center text-gray-500">ยังไม่มีข้อมูล</p>
+        ) : !insights || summary.length === 0 ? (
+          <p className="text-center text-gray-500">ยังไม่มีข้อมูลให้วิเคราะห์</p>
         ) : (
           <>
-            {/* ✅ สรุป insight */}
             <div className="bg-yellow-50 border border-yellow-300 p-4 rounded-xl shadow-sm space-y-1 text-sm">
-              <p>📝 ตอบทั้งหมด <strong>{stats?.total}</strong> ข้อ</p>
-              <p>🎯 คะแนนเฉลี่ย <strong>{stats?.avgScore}</strong></p>
-              <p>⏱️ เวลาเฉลี่ยต่อข้อ <strong>{stats?.avgTime} วินาที</strong></p>
-              <p>🧠 หัวข้อที่ทำได้ดี: <strong>{stats?.strong?.topic}</strong> ({stats?.strong?.avg.toFixed(2)})</p>
-              <p>⚠️ หัวข้อที่ควรฝึกเพิ่ม: <strong>{stats?.weak?.topic}</strong> ({stats?.weak?.avg.toFixed(2)})</p>
-              <p>📌 หัวข้อที่ตอบบ่อยสุด: <strong>{stats?.mostAnswered?.[0]}</strong> ({stats?.mostAnswered?.[1]} ครั้ง)</p>
-              <p>⏳ หัวข้อที่ใช้เวลามากสุด: <strong>{stats?.mostTimeSpent?.[0]}</strong> ({stats?.mostTimeSpent?.[1].toFixed(0)} วินาที)</p>
+              <p>📝 ตอบทั้งหมด <strong>{insights.total}</strong> ข้อ</p>
+              <p>🎯 คะแนนเฉลี่ย: <strong>{(insights.avgScore * 100).toFixed(0)}%</strong></p>
+              <p>⏱️ เวลาเฉลี่ยต่อข้อ: <strong>{formatTime(insights.avgTime)}</strong></p>
+              <p>🧠 หัวข้อที่ทำได้ดีที่สุด: <strong>{insights.best?.topic}</strong> (เฉลี่ย {((insights.best?.avg || 0) * 100).toFixed(0)}%)</p>
+              <p>⚠️ หัวข้อที่คะแนนน้อยสุด: <strong>{insights.worst?.topic}</strong> (เฉลี่ย {((insights.worst?.avg || 0) * 100).toFixed(0)}%)</p>
+              <p>⏳ หัวข้อที่ใช้เวลามากที่สุด: <strong>{insights.mostTimeSpent?.[0]}</strong> ({formatTime(insights.mostTimeSpent?.[1])})</p>
             </div>
 
-            {/* ✅ กราฟ */}
             <SummaryChart data={summary} />
 
-            {/* ✅ รายละเอียดแต่ละ section */}
-            {summary.map((sectionData, idx) => {
+            {/* ➕ แก้ logic ในการแสดงรายข้อ: เอา answersBySection มาใช้ ไม่ filter แบบเดิม */}
+            {summary.map((sectionData) => {
               const isExpanded = expandedSection === sectionData.section
-              const sectionAnswers = answers.filter(a =>
-                `${a.subject?.trim() || "ไม่ระบุ"} / ${a.topic?.trim() || "ไม่ระบุ"}` === sectionData.section
-              )
+              // แสดงเฉพาะคำตอบที่จับกลุ่มแล้ว
+              const sectionAnswers = answersBySection[sectionData.section] || []
 
               return (
                 <AnswerSection
