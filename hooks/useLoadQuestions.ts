@@ -9,6 +9,8 @@ export default function useLoadQuestions() {
   const [error, setError] = useState<string | null>(null);
 
   const searchParams = useSearchParams();
+  const subject = searchParams.get("subject");
+  const topic = searchParams.get("topic");
 
   useEffect(() => {
     const loadQuestions = async () => {
@@ -19,27 +21,28 @@ export default function useLoadQuestions() {
           ...(doc.data() as any),
         }));
 
-        const subject = searchParams.get("subject");
-        const topic = searchParams.get("topic");
+        // Filter ที่ trim กันพลาด
+        if (subject) qList = qList.filter(q => q.subject?.trim() === subject.trim());
+        if (topic) qList = qList.filter(q => q.topic?.trim() === topic.trim());
 
-        if (subject) qList = qList.filter(q => q.subject === subject);
-        if (topic) qList = qList.filter(q => q.topic === topic);
+        // กัน document format พัง
+        qList = qList.filter(q => q.question && Array.isArray(q.choices) && q.choices.length > 0);
 
         if (qList.length === 0) {
           setError("❌ ไม่พบข้อสอบตามที่เลือก");
         } else {
-          setQuestions(qList.sort(() => Math.random() - 0.5)); // สุ่ม
+          setQuestions(qList.sort(() => Math.random() - 0.5)); // shuffle
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
-        setError("🔥 โหลดข้อสอบล้มเหลว");
+        setError(e.message || "🔥 โหลดข้อสอบล้มเหลว");
       } finally {
         setLoading(false);
       }
     };
 
     loadQuestions();
-  }, [searchParams]);
+  }, [subject, topic]);
 
   return { questions, loading, error };
 }

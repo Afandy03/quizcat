@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from "react"
 import { auth, db } from "@/lib/firebase"
-import { collection, doc, getDoc, getDocs, deleteDoc, updateDoc } from "firebase/firestore"
 import Image from "next/image"
 import ThemedLayout from "@/components/ThemedLayout"
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  deleteDoc,
+  updateDoc,
+  addDoc,               // ✅ เพิ่มอันนี้
+  serverTimestamp       // ✅ เพิ่มอันนี้
+} from "firebase/firestore"
+
 
 
 
@@ -13,7 +23,7 @@ export default function RewardsPage() {
   const [userPoints, setUserPoints] = useState(0)
   const [userRole, setUserRole] = useState("user")
   const [rewards, setRewards] = useState<any[]>([])
-  
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -45,6 +55,23 @@ export default function RewardsPage() {
       points: userPoints - reward.cost,
     })
 
+
+
+    await addDoc(collection(db, "reward_claims"), {
+      userId: user.uid,
+      rewardId: reward.id,
+      rewardName: reward.name,
+      cost: reward.cost,
+      claimedAt: serverTimestamp(),
+    })
+
+
+
+
+
+
+
+
     alert(`แลก "${reward.name}" เรียบร้อย!`)
     setUserPoints(userPoints - reward.cost)
   }
@@ -56,6 +83,8 @@ export default function RewardsPage() {
     await deleteDoc(doc(db, "rewards", id))
     setRewards((prev) => prev.filter((r) => r.id !== id))
   }
+
+
 
   const isExpired = (reward: any) => {
     if (!reward.expiresAt) return false
@@ -87,8 +116,8 @@ export default function RewardsPage() {
                   <Image
                     src={
                       r.imageUrl && r.imageUrl.startsWith("http")
-                      ? r.imageUrl.trim()
-                      : "https://i.pinimg.com/564x/bd/ce/45/bdce4587851a6ebe571e71f00de7743f.jpg"
+                        ? r.imageUrl.trim()
+                        : "https://i.pinimg.com/564x/bd/ce/45/bdce4587851a6ebe571e71f00de7743f.jpg"
                     }
                     alt={r.name}
                     width={300}
@@ -123,9 +152,8 @@ export default function RewardsPage() {
                   <button
                     disabled={!canClaim}
                     onClick={() => handleClaim(r)}
-                    className={`w-full py-2 rounded text-white font-semibold ${
-                      canClaim ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"
-                    }`}
+                    className={`w-full py-2 rounded text-white font-semibold ${canClaim ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"
+                      }`}
                   >
                     {canClaim ? "แลกเลย" : "แต้มไม่พอ"}
                   </button>
@@ -139,6 +167,14 @@ export default function RewardsPage() {
                     🗑️ ลบ
                   </button>
                 )}
+
+                <a
+                  href="/rewards/history"
+                  className="block text-center mt-6 text-blue-600 underline hover:text-blue-800"
+                >
+                  📜 ดูประวัติการแลกของทั้งหมดของคุณ
+                </a>
+
               </div>
             )
           })}

@@ -1,24 +1,25 @@
 import { useEffect, useState } from "react";
 
 type UseCountdownOptions = {
-  key: any; // ตัวที่ใช้ trigger reset (เปลี่ยนข้อ ฯลฯ)
-  duration?: number; // หน่วย = "มิลลิวินาที" เช่น 30000 = 30 วิ
-  onTimeOut?: () => void; // ฟังก์ชันที่เรียกเมื่อหมดเวลา
-  paused?: boolean; // หยุดนับได้
+  resetSignal: any;             // ตัวที่ใช้ trigger การรีเซ็ตเวลา
+  duration?: number;            // หน่วยเป็นมิลลิวินาที (default = 30 วิ)
+  onTimeOut?: () => void;       // ฟังก์ชันที่จะถูกเรียกเมื่อหมดเวลา
+  paused?: boolean;             // หยุดนับชั่วคราว
 };
 
 export default function useCountdown({
-  key,
-  duration = 30000, // default = 30 วิ (30,000 มิลลิวินาที)
+  resetSignal,
+  duration = 30000,
   onTimeOut,
   paused = false,
 }: UseCountdownOptions) {
-  const initialSeconds = Math.floor(duration / 1000); // แปลงเป็นวินาที
-  const [timeLeft, setTimeLeft] = useState(initialSeconds);
+  const [timeLeft, setTimeLeft] = useState(Math.floor(duration / 1000));
 
   useEffect(() => {
     if (paused) return;
-    setTimeLeft(initialSeconds);
+
+    const seconds = Math.floor(duration / 1000);
+    setTimeLeft(seconds);
 
     const interval = setInterval(() => {
       setTimeLeft((prev) => {
@@ -32,7 +33,7 @@ export default function useCountdown({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [key, initialSeconds, onTimeOut, paused]);
+  }, [resetSignal, duration, onTimeOut, paused]);
 
   return timeLeft;
 }

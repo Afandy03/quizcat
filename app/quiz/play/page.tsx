@@ -1,22 +1,10 @@
 'use client'
 
-// 🧩 นำเข้า Component และ Hook ต่างๆ ที่ใช้ในหน้า
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { onAuthStateChanged } from "firebase/auth";
-import {
-  collection,
-  getDocs,
-  query,
-  where,
-  doc,
-  updateDoc,
-  increment,
-  addDoc,
-  serverTimestamp,
-} from "firebase/firestore";
 
-import { auth, db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 import ThemedLayout from "@/components/ThemedLayout";
 import ChatBot from "@/components/ChatBot";
 import ProgressBar from "@/components/ProgressBar";
@@ -27,64 +15,37 @@ import QuizSummary from "@/components/QuizSummary";
 
 import { useUserTheme } from "@/lib/useTheme";
 import useLoadQuestions from "@/hooks/useLoadQuestions";
-import useCountdown from "@/hooks/useCountdown";
 import useAnswerQuestion from "@/hooks/useAnswerQuestion";
-import useQuestionFlow from "@/hooks/useQuestionFlow";
+import useElapsedTime from "@/hooks/useElapsedTime";
 
 export default function QuizPlayPage() {
-  // 📦 เก็บค่าต่างๆ ที่ใช้ในการทำข้อสอบ
-  const [current, setCurrent] = useState(0); // ข้อที่กำลังทำ
-  const [user, setUser] = useState<any>(null); // ผู้ใช้งาน (login แล้ว)
-  const [isAnswering, setIsAnswering] = useState(false); // กำลังตอบอยู่ไหม
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null); // ตัวเลือกที่กด
-  const [score, setScore] = useState(0); // คะแนนรวม
-  const [finished, setFinished] = useState(false); // ทำข้อสอบครบหรือยัง
-  const [showChat, setShowChat] = useState(false); // เปิด/ปิดบอท
-  const [timeStart, setTimeStart] = useState<number>(Date.now()); // เวลาเริ่มทำแต่ละข้อ
-  const [confidenceLevel, setConfidenceLevel] = useState<"confident" | "not_confident" | "guess">("confident"); // ระดับความมั่นใจ
-  const [answered, setAnswered] = useState<number[]>([]); // ข้อที่ตอบไปแล้ว
-  const [skipped, setSkipped] = useState<number[]>([]); // ข้อที่ข้ามไปก่อน
+  const [current, setCurrent] = useState(0);
+  const [user, setUser] = useState<any>(null);
+  const [isAnswering, setIsAnswering] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [finished, setFinished] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [confidenceLevel, setConfidenceLevel] = useState<"confident" | "not_confident" | "guess">("confident");
+  const [answered, setAnswered] = useState<number[]>([]);
+  const [skipped, setSkipped] = useState<number[]>([]);
+  const [lastResult, setLastResult] = useState<{
+    elapsed: number;
+    correct: boolean;
+  } | null>(null);
 
-  // 🧠 โหลดคำถามจากฐานข้อมูล
+  // ✅ ใช้ Hook ที่ย้ายมาใหม่
+  const { elapsedTime, totalElapsedTime } = useElapsedTime(current);
+
   const { questions, loading, error } = useLoadQuestions();
-
-  // 🎨 ธีมที่ผู้ใช้เลือก
   const theme = useUserTheme();
-
-  // 🔁 router สำหรับ redirect
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  // 🔁 ใช้ hook จัดการ logic ข้ามข้อ / ข้อต่อไป
-  const { getNextIndex, handleSkip } = useQuestionFlow({ questions, skipped, current });
-
-  // 🕒 ตัวจับเวลานับถอยหลัง
-  const timeLeft = useCountdown({
-    key: current,
-    duration: 3000000, // 50 นาที
-    onTimeOut: () => {
-      const { nextIndex, updatedSkipped } = handleSkip();
-      setSkipped(updatedSkipped);
-      if (nextIndex !== null) {
-        setCurrent(nextIndex);
-      } else {
-        setFinished(true);
-      }
-    },
-    paused: finished || isAnswering,
-  });
-
-  // ✅ logic การบันทึกคำตอบ
-  const {
-    answer,
-    loading: answerLoading,
-    elapsedAfterAnswer, // เวลาที่ใช้ตอบข้อก่อนหน้า
-  } = useAnswerQuestion({
+  const { answer, loading: answerLoading } = useAnswerQuestion({
     user,
     onScoreUpdate: setScore,
   });
 
-  // 🔒 เช็คว่า login แล้วหรือยัง
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       if (!u) {
@@ -96,60 +57,97 @@ export default function QuizPlayPage() {
     return () => unsubscribe();
   }, [router]);
 
-  // 💡 กดข้ามข้อ
+  const handleConfirmAnswer = async () => {
+    if (selectedIndex === null || isAnswering || finished || answerLoading) return;
+
+    setIsAnswering(true);
+    const q = questions[current];
+
+    await answer({
+      question: q,
+      selectedIndex,
+      confidenceLevel,
+      timeStart: elapsedTime,
+      currentScore: score,
+    });
+
+    const isCorrect = selectedIndex === q.correctIndex;
+    setLastResult({ elapsed: elapsedTime, correct: isCorrect });
+
+    const updatedAnswered = [...new Set([...answered, current])];
+    setAnswered(updatedAnswered);
+
+    setTimeout(() => {
+      const unansweredQuestions = questions
+        .map((_, index) => index)
+        .filter(index => !updatedAnswered.includes(index));
+
+      if (unansweredQuestions.length > 0) {
+        setCurrent(unansweredQuestions[0]);
+      } else {
+        setFinished(true);
+      }
+
+      setSelectedIndex(null);
+      setIsAnswering(false);
+      setConfidenceLevel("confident");
+    }, 1500);
+  };
+
   const onSkip = () => {
-    if (isAnswering) return;
-    const { nextIndex, updatedSkipped } = handleSkip();
-    setSkipped(updatedSkipped);
-    if (nextIndex !== null) {
-      setCurrent(nextIndex);
+    const unanswered = questions
+      .map((_, i) => i)
+      .filter(i => !answered.includes(i) && i !== current);
+    const nextUnansweredIndex = unanswered.find(i => i > current);
+    const firstUnansweredIndex = unanswered[0];
+    setSkipped(prev => [...new Set([...prev, current])]);
+    if (nextUnansweredIndex !== undefined) {
+      setCurrent(nextUnansweredIndex);
+    } else if (firstUnansweredIndex !== undefined) {
+      setCurrent(firstUnansweredIndex);
     } else {
       setFinished(true);
     }
   };
 
-  // 📭 ถ้ากำลังโหลดหรือ error
   if (loading) return <ThemedLayout><p className="p-6 text-gray-500">⏳ กำลังโหลด...</p></ThemedLayout>;
   if (error) return <ThemedLayout><p className="p-6 text-red-500">{error}</p></ThemedLayout>;
   if (questions.length === 0) return null;
 
-  // 🎯 คำถามปัจจุบัน
   const q = questions[current];
 
-  // ========================
-  // 🧾 ส่วนแสดงผลหน้า Quiz
-  // ========================
   return (
     <ThemedLayout>
       <main className="p-6 text-center space-y-4 max-w-2xl mx-auto">
         {!finished ? (
           <>
-            {/* ✅ แถบข้อสอบ */}
             <ProgressBar
               questions={questions}
               current={current}
               skipped={skipped}
               answered={answered}
               isAnswering={isAnswering}
-              onSelect={(i) => setCurrent(i)}
+              onSelect={(i) => {
+                if (!answered.includes(i)) {
+                  setCurrent(i);
+                }
+              }}
             />
 
-            {/* ✅ แสดงคำถาม */}
-            <CurrentQuestion question={q} current={current} timeLeft={timeLeft} />
+            <CurrentQuestion question={q} current={current} />
 
-            {/* ✅ ปุ่มเปิดบอท */}
-            {!selectedIndex && (
-              <div className="flex justify-end">
-                <button
-                  onClick={() => setShowChat(true)}
-                  className="flex items-center gap-2 text-sm text-white bg-gradient-to-r from-blue-500 to-blue-700 px-4 py-2 rounded-full shadow-md hover:from-blue-600 hover:to-blue-800 transition-all"
-                >
-                  💬 ถามบังฟันดี้
-                </button>
-              </div>
-            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowChat(true)}
+                disabled={isAnswering}
+                className="flex items-center gap-2 text-sm text-white bg-gradient-to-r from-blue-500 to-blue-700 px-4 py-2 rounded-full shadow-md hover:from-blue-600 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                💬 ถามบังฟันดี้
+              </button>
+            </div>
 
-            {/* ✅ กล่องแชท */}
+
+
             <ChatBot
               show={showChat}
               onClose={() => setShowChat(false)}
@@ -157,7 +155,6 @@ export default function QuizPlayPage() {
               choices={q.choices}
             />
 
-            {/* ✅ ปุ่มตัวเลือกคำตอบ */}
             <div className="space-y-2 pt-4">
               {q.choices.map((choice: string, index: number) => (
                 <ChoiceButton
@@ -169,75 +166,66 @@ export default function QuizPlayPage() {
                   isAnswering={isAnswering}
                   finished={finished}
                   theme={theme}
-                  onSelect={async () => {
-                    if (isAnswering || finished || answerLoading) return;
-                    const confirmAnswer = window.confirm("ยืนยันคำตอบนี้ใช่หรือไม่?");
-                    if (!confirmAnswer) return;
-
-                    setIsAnswering(true);
-                    setSelectedIndex(index);
-
-                    await answer({
-                      question: q,
-                      selectedIndex: index,
-                      confidenceLevel,
-                      timeStart,
-                      currentScore: score,
-                    });
-
-                    setTimeout(() => {
-                      setIsAnswering(false);
-                      setSelectedIndex(null);
-                      setConfidenceLevel("confident");
-                      setAnswered((prev) => [...new Set([...prev, current])]);
-                      setTimeStart(Date.now());
-
-                      const newSkipped = skipped.filter((item) => item !== current);
-                      setSkipped(newSkipped);
-
-                      const remainingQuestions = questions
-                        .map((_, i) => i)
-                        .filter((i) => i !== current && !newSkipped.includes(i));
-                      const nextUnanswered = remainingQuestions.find((i) => i > current);
-
-                      if (nextUnanswered !== undefined) {
-                        setCurrent(nextUnanswered);
-                      } else if (newSkipped.length > 0) {
-                        setCurrent(newSkipped[0]);
-                      } else {
-                        setFinished(true);
-                      }
-                    }, 1500);
+                  onSelect={() => {
+                    if (!isAnswering) {
+                      setSelectedIndex(index);
+                    }
                   }}
                 />
               ))}
             </div>
 
-            {/* ✅ ปุ่มข้าม */}
+            {selectedIndex !== null && !isAnswering && (
+              <div className="mt-4">
+                <button
+                  onClick={handleConfirmAnswer}
+                  disabled={answerLoading}
+                  className="w-full px-6 py-4 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 font-bold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+                >
+                  {answerLoading ? 'กำลังส่งคำตอบ...' : '✅ ยืนยันคำตอบ'}
+                </button>
+              </div>
+            )}
+
             <div className="flex justify-center gap-2 mt-4 text-sm">
               <button
                 onClick={onSkip}
-                className="px-5 py-3 bg-gradient-to-r from-gray-600 to-gray-800 text-white rounded-xl shadow-md hover:from-gray-700 hover:to-black transition-all duration-200"
+                disabled={isAnswering}
+                className="px-5 py-3 bg-gradient-to-r from-gray-600 to-gray-800 text-white rounded-xl shadow-md hover:from-gray-700 hover:to-black disabled:opacity-50"
               >
                 ⏭️ ข้ามข้อนี้ไปก่อน
               </button>
             </div>
 
-            {/* ✅ ปุ่มเลือกความมั่นใจ */}
             <ConfidenceSelector
               value={confidenceLevel}
               onChange={(level) => setConfidenceLevel(level)}
             />
 
-            {/* ✅ เวลาใช้ไป */}
-            {elapsedAfterAnswer !== null && (
-              <p className="text-sm text-gray-700 pt-4 font-mono bg-gray-100 rounded-md px-4 py-2 inline-block shadow-inner">
-                🕒 ใช้เวลา <span className="font-bold text-blue-600">{elapsedAfterAnswer}</span> วินาที | 🎯 แต้ม: <span className="font-bold text-green-600">{score}</span>
-              </p>
-            )}
+            <div className="text-sm text-gray-800 bg-white rounded-xl shadow-inner px-6 py-4 space-y-1 border border-gray-200 text-left">
+              <div className="flex justify-between items-center">
+                <span>⏱ เวลาข้อนี้:</span>
+                <span className="font-bold text-blue-600">{elapsedTime} วินาที</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>⌛ เวลารวม:</span>
+                <span className="font-bold text-indigo-500">{totalElapsedTime} วินาที</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>💰 แต้มสะสม:</span>
+                <span className="font-bold text-green-600">{score} แต้ม</span>
+              </div>
+              <div className={`flex justify-between items-center pt-2 border-t mt-2 text-sm ${lastResult ? 'visible' : 'invisible'}`}>
+                <span>ผลลัพธ์ข้อที่ผ่านมา:</span>
+                {lastResult?.correct ? (
+                  <span className="text-green-600 font-bold">🎯 +10 แต้ม</span>
+                ) : (
+                  <span className="text-red-500 font-bold">❌ ไม่ได้แต้ม</span>
+                )}
+              </div>
+            </div>
           </>
         ) : (
-          // ✅ หน้าสรุปผลตอนทำครบ
           <QuizSummary
             score={score}
             maxScore={questions.length * 10}
