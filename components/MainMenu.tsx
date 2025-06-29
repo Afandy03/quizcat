@@ -10,7 +10,6 @@ import { useUserTheme } from "@/lib/useTheme"
 const menuItems = [
   // 🔹 พื้นฐาน
   { label: "แดชบอร์ด", path: "/dashboard", icon: "🏠", guestAllowed: true },
-  { label: "ทำข้อสอบ", path: "/quiz/select", icon: "📝", guestAllowed: true },
   { label: "ทำข้อสอบ V2", path: "/quiz/v2/select", icon: "🚀", guestAllowed: true },
 
   // 🔹 ของรางวัล
@@ -26,9 +25,8 @@ const menuItems = [
   { label: "ตั้งค่า", path: "/settings", icon: "⚙️", guestAllowed: true }, // Guest สามารถเปลี่ยนธีมได้
 
   // 🔹 แอดมิน
-  { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false }, // เปลี่ยนไอคอนให้ดูแยกออก
-  { label: "วิเคราะห์ความเข้าใจ", path: "/analysis", icon: "📊", guestAllowed: false },
-  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈", guestAllowed: true },
+  { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false },
+  { label: "วิเคราะห์ผล V2", path: "/analysis", icon: "📊", guestAllowed: false },
   
   // 🔹 ออกจากระบบ
   { label: "ออกจากระบบ", path: "/login", icon: "🚪", guestAllowed: true },

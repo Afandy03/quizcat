@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, addDoc, serverTimestamp, doc, getDoc, setDoc } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useUserTheme } from '@/lib/useTheme'
@@ -26,7 +26,7 @@ interface Answer {
   selectedIndex: number
   correctIndex: number
   isCorrect: boolean
-  confidenceLevel: 'guess' | 'uncertain' | 'confident'
+  confidenceLevel: 'guess' | 'uncertain' | 'confident' // ✅ ยังคงเป็น non-null ใน Answer
   timeSpent: number
   subject: string
   topic: string
@@ -38,7 +38,7 @@ export default function QuizV2PlayPage() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
-  const [confidenceLevel, setConfidenceLevel] = useState<'guess' | 'uncertain' | 'confident'>('confident')
+  const [confidenceLevel, setConfidenceLevel] = useState<'guess' | 'uncertain' | 'confident' | null>(null)
   const [timeStart, setTimeStart] = useState<number>(Date.now())
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now())
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -46,22 +46,33 @@ export default function QuizV2PlayPage() {
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  
+  // ✅ เพิ่มระบบแต้ม
+  const [userPoints, setUserPoints] = useState(0)
+  const [earnedPoints, setEarnedPoints] = useState(0)
+  const [showPointsAnimation, setShowPointsAnimation] = useState(false)
 
   const theme = useUserTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u)
       
-      if (!u) {
+      if (u) {
+        // โหลดแต้มปัจจุบัน
+        const userRef = doc(db, 'users', u.uid)
+        const userSnap = await getDoc(userRef)
+        if (userSnap.exists()) {
+          setUserPoints(userSnap.data().points || 0)
+        }
+        localStorage.removeItem('quizcat-guest-mode')
+      } else {
         const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
         if (!isGuestMode) {
           router.push('/login')
         }
-      } else {
-        localStorage.removeItem('quizcat-guest-mode')
       }
     })
     return () => unsubscribe()
@@ -115,12 +126,39 @@ export default function QuizV2PlayPage() {
   }, [searchParams])
 
   const handleAnswer = async () => {
-    if (selectedChoice === null || isSubmitting) return
+    // ✅ เพิ่ม guard สำหรับ confidenceLevel
+    if (selectedChoice === null || confidenceLevel === null || isSubmitting) return
 
     setIsSubmitting(true)
     const question = questions[currentIndex]
     const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
     const isCorrect = selectedChoice === question.correctIndex
+
+    // ✅ คำนวณแต้มที่ได้รับ
+    let pointsEarned = 0
+    if (isCorrect && user) {
+      // แต้มพื้นฐาน 1 แต้มต่อข้อ
+      pointsEarned = 1
+      
+      // โบนัสตามความมั่นใจ
+      if (confidenceLevel === 'confident') pointsEarned += 2 // รวม 3 แต้ม
+      else if (confidenceLevel === 'uncertain') pointsEarned += 1 // รวม 2 แต้ม
+      // 'guess' ได้ 1 แต้มเท่านั้น
+      
+      // โบนัสตามเวลา (ถ้าตอบเร็วกว่า 30 วินาที)
+      if (timeSpent <= 30) pointsEarned += 1
+      
+      // อัพเดทแต้มในฐานข้อมูล
+      const userRef = doc(db, 'users', user.uid)
+      const newPoints = userPoints + pointsEarned
+      await setDoc(userRef, { points: newPoints }, { merge: true })
+      setUserPoints(newPoints)
+      setEarnedPoints(pointsEarned)
+      
+      // แสดง animation แต้ม
+      setShowPointsAnimation(true)
+      setTimeout(() => setShowPointsAnimation(false), 2000)
+    }
 
     const answer: Answer = {
       questionId: question.id,
@@ -147,6 +185,7 @@ export default function QuizV2PlayPage() {
           userEmail: user.email || '',
           timestamp: serverTimestamp(),
           quizSession: timeStart,
+          pointsEarned, // ✅ เพิ่มการบันทึกแต้มที่ได้
           // ให้แน่ใจว่าไม่มีค่า undefined
           subject: answer.subject || 'ไม่ระบุ',
           topic: answer.topic || 'ไม่ระบุ',
@@ -162,23 +201,35 @@ export default function QuizV2PlayPage() {
     }
 
     // Move to next question or show results
-    setTimeout(() => {
-      if (currentIndex + 1 < questions.length) {
-        setCurrentIndex(currentIndex + 1)
-        setSelectedChoice(null)
-        setConfidenceLevel('confident')
-        setQuestionStartTime(Date.now())
-      } else {
-        setShowResult(true)
-      }
-      setIsSubmitting(false)
-    }, 1500)
+    if (currentIndex + 1 < questions.length) {
+      setCurrentIndex(currentIndex + 1)
+      setSelectedChoice(null)
+      setConfidenceLevel(null) // ✅ เปลี่ยนเป็น null เพื่อบังคับให้เลือกใหม่
+      setQuestionStartTime(Date.now())
+    } else {
+      setShowResult(true)
+    }
+    setIsSubmitting(false)
   }
 
   const calculateStats = () => {
     const totalQuestions = answers.length
     const correctAnswers = answers.filter(a => a.isCorrect).length
     const percentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0
+    
+    // ✅ คำนวณแต้มรวมที่ได้รับ
+    const totalPointsEarned = answers.reduce((sum, answer) => {
+      if (!answer.isCorrect) return sum
+      
+      let points = 1 // แต้มพื้นฐาน
+      if (answer.confidenceLevel === 'confident') points += 2
+      else if (answer.confidenceLevel === 'uncertain') points += 1
+      
+      // โบนัสเวลา (สมมติเก็บเวลาไว้)
+      if (answer.timeSpent <= 30) points += 1
+      
+      return sum + points
+    }, 0)
     
     const bySubject = answers.reduce((acc, answer) => {
       if (!acc[answer.subject]) {
@@ -205,6 +256,7 @@ export default function QuizV2PlayPage() {
       percentage,
       correctAnswers,
       totalQuestions,
+      totalPointsEarned,
       bySubject,
       byConfidence,
       avgTime,
@@ -264,11 +316,21 @@ export default function QuizV2PlayPage() {
             <p style={{ color: theme.textColor + '80' }}>
               ตอบถูก {stats.correctAnswers} จาก {stats.totalQuestions} ข้อ
             </p>
+            {/* ✅ แสดงแต้มที่ได้รับ */}
+            {user && stats.totalPointsEarned > 0 && (
+              <div 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full mt-4"
+                style={{ backgroundColor: '#f59e0b', color: '#ffffff' }}
+              >
+                <span className="text-2xl">🎉</span>
+                <span className="text-xl font-bold">+{stats.totalPointsEarned} แต้ม!</span>
+              </div>
+            )}
           </div>
 
           {/* Overall Stats */}
           <div 
-            className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6"
+            className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
           >
             <div 
               className="p-4 rounded-lg text-center"
@@ -298,6 +360,16 @@ export default function QuizV2PlayPage() {
               <div style={{ color: theme.textColor + '80' }}>
                 {stats.percentage >= 80 ? 'ยอดเยี่ยม!' : stats.percentage >= 60 ? 'ดีมาก!' : 'ต้องพัฒนา'}
               </div>
+            </div>
+            {/* ✅ เพิ่มการ์ดแต้ม */}
+            <div 
+              className="p-4 rounded-lg text-center"
+              style={{ backgroundColor: theme.textColor + '10', borderLeft: `4px solid #f59e0b` }}
+            >
+              <div className="text-2xl font-bold" style={{ color: '#f59e0b' }}>
+                ⭐ {stats.totalPointsEarned}
+              </div>
+              <div style={{ color: theme.textColor + '80' }}>แต้มที่ได้รับ</div>
             </div>
           </div>
 
@@ -428,12 +500,25 @@ export default function QuizV2PlayPage() {
       <main className="p-6 max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 
-            className="text-2xl font-bold mb-2"
-            style={{ color: theme.textColor }}
-          >
-            🚀 ข้อสอบ V2
-          </h1>
+          <div className="flex justify-between items-center mb-4">
+            <h1 
+              className="text-2xl font-bold"
+              style={{ color: theme.textColor }}
+            >
+              🚀 ข้อสอบ V2
+            </h1>
+            {/* แสดงแต้มปัจจุบัน */}
+            {user && (
+              <div 
+                className="flex items-center gap-2 px-4 py-2 rounded-lg"
+                style={{ backgroundColor: '#f59e0b', color: '#ffffff' }}
+              >
+                <span className="text-lg">⭐</span>
+                <span className="font-bold">{userPoints} แต้ม</span>
+              </div>
+            )}
+          </div>
+          
           <div 
             className="text-sm mb-4"
             style={{ color: theme.textColor + '80' }}
@@ -456,6 +541,18 @@ export default function QuizV2PlayPage() {
           </div>
         </div>
 
+        {/* Points Animation */}
+        {showPointsAnimation && (
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50">
+            <div 
+              className="bg-yellow-400 text-white px-6 py-4 rounded-full text-xl font-bold animate-bounce shadow-lg"
+              style={{ animation: 'bounce 1s infinite' }}
+            >
+              +{earnedPoints} แต้ม! 🎉
+            </div>
+          </div>
+        )}
+
         {/* Question */}
         <div 
           className="rounded-lg p-6"
@@ -465,16 +562,25 @@ export default function QuizV2PlayPage() {
             <div style={{ color: theme.textColor + '70' }} className="text-sm">
               📚 {currentQuestion.subject} | 📖 {currentQuestion.topic}
             </div>
-            <div 
-              className="px-2 py-1 rounded text-xs"
-              style={{ 
-                backgroundColor: currentQuestion.difficulty === 'easy' ? '#10b981' :
-                                currentQuestion.difficulty === 'medium' ? '#f59e0b' : '#ef4444',
-                color: '#ffffff'
-              }}
-            >
-              {currentQuestion.difficulty === 'easy' ? '📗 ง่าย' :
-               currentQuestion.difficulty === 'medium' ? '📘 ปานกลาง' : '📕 ยาก'}
+            <div className="flex gap-2">
+              <div 
+                className="px-2 py-1 rounded text-xs"
+                style={{ 
+                  backgroundColor: currentQuestion.difficulty === 'easy' ? '#10b981' :
+                                  currentQuestion.difficulty === 'medium' ? '#f59e0b' : '#ef4444',
+                  color: '#ffffff'
+                }}
+              >
+                {currentQuestion.difficulty === 'easy' ? '📗 ง่าย' :
+                 currentQuestion.difficulty === 'medium' ? '📘 ปานกลาง' : '📕 ยาก'}
+              </div>
+              {/* แสดงแต้มที่จะได้รับ */}
+              <div 
+                className="px-2 py-1 rounded text-xs"
+                style={{ backgroundColor: '#f59e0b', color: '#ffffff' }}
+              >
+                ⭐ 1-4 แต้ม
+              </div>
             </div>
           </div>
           
@@ -518,9 +624,9 @@ export default function QuizV2PlayPage() {
           </h3>
           <div className="grid grid-cols-3 gap-3">
             {[
-              { value: 'confident', icon: '💪', label: 'มั่นใจ', color: '#10b981' },
-              { value: 'uncertain', icon: '🤔', label: 'ไม่แน่ใจ', color: '#f59e0b' },
-              { value: 'guess', icon: '🎲', label: 'เดา', color: '#ef4444' }
+              { value: 'confident', icon: '💪', label: 'มั่นใจ', color: '#10b981', points: '+3 แต้ม' },
+              { value: 'uncertain', icon: '🤔', label: 'ไม่แน่ใจ', color: '#f59e0b', points: '+2 แต้ม' },
+              { value: 'guess', icon: '🎲', label: 'เดา', color: '#ef4444', points: '+1 แต้ม' }
             ].map((option) => (
               <button
                 key={option.value}
@@ -534,18 +640,22 @@ export default function QuizV2PlayPage() {
               >
                 <div className="text-xl mb-1">{option.icon}</div>
                 <div className="text-sm font-medium">{option.label}</div>
+                <div className="text-xs opacity-70">{option.points}</div>
               </button>
             ))}
           </div>
+          <p className="text-xs mt-2 text-center" style={{ color: theme.textColor + '60' }}>
+            💡 ตอบเร็วภายใน 30 วินาที = โบนัส +1 แต้ม
+          </p>
         </div>
 
         {/* Submit Button */}
         <button
           onClick={handleAnswer}
-          disabled={selectedChoice === null || isSubmitting}
+          disabled={selectedChoice === null || confidenceLevel === null || isSubmitting} // ✅ เพิ่ม confidenceLevel === null
           className="w-full py-4 rounded-lg font-bold text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02]"
           style={{
-            background: selectedChoice !== null 
+            background: selectedChoice !== null && confidenceLevel !== null // ✅ เพิ่มเงื่อนไข confidenceLevel
               ? 'linear-gradient(45deg, #10b981, #059669)' 
               : theme.textColor + '40',
             color: '#ffffff'

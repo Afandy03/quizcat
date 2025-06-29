@@ -87,10 +87,11 @@ export default function AnalysisPage() {
 
   const loadAnalysisData = async (userId: string) => {
     try {
-      // โหลดข้อมูลจาก quiz_v2_answers โดยไม่ใช้ orderBy ก่อน
+      // โหลดข้อมูลจาก quiz_v2_answers
       const q = query(
         collection(db, 'quiz_v2_answers'),
-        where('userId', '==', userId)
+        where('userId', '==', userId),
+        orderBy('timestamp', 'desc')
       )
       
       const snapshot = await getDocs(q)
@@ -98,13 +99,6 @@ export default function AnalysisPage() {
         id: doc.id,
         ...doc.data()
       } as AnswerV2))
-      
-      // เรียงลำดับใน JavaScript แทน
-      answersData.sort((a, b) => {
-        const aTime = a.timestamp?.toDate?.() || new Date(0)
-        const bTime = b.timestamp?.toDate?.() || new Date(0)
-        return bTime.getTime() - aTime.getTime() // desc order
-      })
       
       setAnswers(answersData)
       calculateStats(answersData)

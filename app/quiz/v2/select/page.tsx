@@ -27,7 +27,6 @@ export default function QuizV2SelectPage() {
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedTopic, setSelectedTopic] = useState('')
   const [selectedGrade, setSelectedGrade] = useState('')
-  const [questionCount, setQuestionCount] = useState(10)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -75,6 +74,11 @@ export default function QuizV2SelectPage() {
   }, [selectedSubject, allQuestions])
 
   const getAvailableQuestions = () => {
+    // ✅ ถ้าไม่ได้เลือกเงื่อนไขใดๆ เลย ให้คืนค่า array ว่าง
+    if (!selectedSubject && !selectedTopic && !selectedGrade) {
+      return []
+    }
+
     let filtered = allQuestions
 
     if (selectedSubject) {
@@ -93,9 +97,12 @@ export default function QuizV2SelectPage() {
   const handleStartQuiz = () => {
     const questions = getAvailableQuestions()
     if (questions.length === 0) {
-      alert('ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก')
+      alert('กรุณาเลือกวิชา หรือหมวด หรือระดับชั้น เพื่อค้นหาข้อสอบ')
       return
     }
+
+    // ✅ ใช้จำนวนข้อสอบคงที่ 10 ข้อ หรือจำนวนที่มีทั้งหมด (ถ้าน้อยกว่า 10)
+    const questionCount = Math.min(questions.length, 10)
 
     // สร้าง URL parameters
     const params = new URLSearchParams()
@@ -128,7 +135,6 @@ export default function QuizV2SelectPage() {
   }
 
   const availableQuestions = getAvailableQuestions()
-  const maxQuestions = Math.min(availableQuestions.length, 50)
 
   return (
     <ThemedLayout>
@@ -271,40 +277,6 @@ export default function QuizV2SelectPage() {
             </select>
           </div>
 
-          {/* Question Count */}
-          <div>
-            <label 
-              className="block text-sm font-medium mb-2"
-              style={{ color: theme.textColor }}
-            >
-              📝 จำนวนข้อสอบ:
-            </label>
-            <input
-              type="range"
-              min="5"
-              max={maxQuestions}
-              value={questionCount}
-              onChange={(e) => setQuestionCount(parseInt(e.target.value))}
-              className="w-full"
-              style={{
-                backgroundColor: theme.bgColor,
-              }}
-            />
-            <div 
-              className="flex justify-between text-sm mt-1"
-              style={{ color: theme.textColor + '80' }}
-            >
-              <span>5 ข้อ</span>
-              <span 
-                className="font-bold"
-                style={{ color: theme.textColor }}
-              >
-                {questionCount} ข้อ
-              </span>
-              <span>{maxQuestions} ข้อ (สูงสุด)</span>
-            </div>
-          </div>
-
           {/* Question Count Display */}
           <div 
             className="border rounded-lg p-4 text-center"
@@ -317,13 +289,13 @@ export default function QuizV2SelectPage() {
               className="text-2xl font-bold mb-2"
               style={{ color: theme.textColor }}
             >
-              📋 {availableQuestions.length} ข้อ
+              📋 {availableQuestions.length > 0 ? availableQuestions.length : '--'} ข้อ
             </div>
             <p 
               className="text-sm"
               style={{ color: theme.textColor + '80' }}
             >
-              ข้อสอบที่พบตามเงื่อนไข
+              {availableQuestions.length > 0 ? 'ข้อสอบที่พบตามเงื่อนไข' : 'กรุณาเลือกเงื่อนไขการค้นหา'}
             </p>
             {availableQuestions.length > 0 && (
               <div 
@@ -357,9 +329,8 @@ export default function QuizV2SelectPage() {
                 : theme.textColor + '40',
               color: '#ffffff',
               transform: availableQuestions.length > 0 ? 'scale(1)' : 'scale(0.98)'
-            }}
-          >
-            {availableQuestions.length > 0 ? '🚀 เริ่มทำข้อสอบ V2' : '❌ ไม่พบข้อสอบ'}
+            }}            >
+            {availableQuestions.length > 0 ? '🚀 เริ่มทำข้อสอบ V2' : '🔍 กรุณาเลือกเงื่อนไข'}
           </button>
         </div>
 
