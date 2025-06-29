@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, addDoc, serverTimestamp, writeBatch, doc } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useUserTheme } from '@/lib/useTheme'
@@ -22,11 +22,10 @@ interface Question {
 
 interface Answer {
   questionId: string
-  question: string
   selectedIndex: number
   correctIndex: number
   isCorrect: boolean
-  confidenceLevel: 'guess' | 'uncertain' | 'confident'
+  confidenceLevel: 'guess' | 'uncertain' | 'confident' // ✅ ยังคงเป็น non-null ใน Answer
   timeSpent: number
   subject: string
   topic: string
@@ -34,22 +33,96 @@ interface Answer {
 }
 
 export default function QuizV2PlayPage() {
+  // ✅ Simple client-side only check
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <ThemedLayout>
+        <div className="p-6 text-center">
+          <div className="animate-spin w-8 h-8 border-4 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <p>⏳ กำลังโหลดข้อสอบ...</p>
+        </div>
+      </ThemedLayout>
+    )
+  }
+
+  return <QuizV2PlayContentComponent />
+}
+
+function QuizV2PlayContentComponent() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [answers, setAnswers] = useState<Answer[]>([])
   const [selectedChoice, setSelectedChoice] = useState<number | null>(null)
-  const [confidenceLevel, setConfidenceLevel] = useState<'guess' | 'uncertain' | 'confident'>('confident')
-  const [timeStart, setTimeStart] = useState<number>(Date.now())
-  const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now())
+  const [confidenceLevel, setConfidenceLevel] = useState<'guess' | 'uncertain' | 'confident' | null>(null) // ✅ เปลี่ยนเป็น null
+  const [timeStart, setTimeStart] = useState<number>(0) // ✅ เปลี่ยนเป็น 0 เพื่อป้องกัน hydration error
+  const [questionStartTime, setQuestionStartTime] = useState<number>(0) // ✅ เปลี่ยนเป็น 0 เพื่อป้องกัน hydration error
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showResult, setShowResult] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // ✅ เพิ่ม saving state สำหรับแสดง indicator
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  // ✅ เพิ่ม hydrated state เพื่อป้องกัน hydration error
+  const [isHydrated, setIsHydrated] = useState(false)
+  // ✅ เพิ่ม current timer state เพื่อป้องกัน hydration error  
+  const [currentTime, setCurrentTime] = useState(0)
 
   const theme = useUserTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
+
+  // ✅ Mark as hydrated เมื่อ component mount เพื่อป้องกัน hydration error
+  useEffect(() => {
+    setIsHydrated(true)
+  }, [])
+
+  // ✅ Initialize timestamps after component mount เพื่อป้องกัน hydration error
+  useEffect(() => {
+    const now = Date.now()
+    setTimeStart(now)
+    setQuestionStartTime(now)
+  }, [])
+
+  // ✅ Update timer every second เพื่อป้องกัน hydration error
+  useEffect(() => {
+    if (!isHydrated || questionStartTime === 0) return
+
+    const interval = setInterval(() => {
+      setCurrentTime(Math.round((Date.now() - questionStartTime) / 1000))
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [isHydrated, questionStartTime])
+
+  // Cleanup: บันทึกคำตอบที่ทำไปแล้วก่อนออกจากหน้า
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (answers.length > 0 && user) {
+        // ใช้ sendBeacon สำหรับบันทึกข้อมูลตอน page unload
+        const data = JSON.stringify({
+          answers,
+          userId: user.uid,
+          userEmail: user.email || '',
+          quizSession: timeStart
+        })
+        
+        // Note: sendBeacon ไม่รองรับ Firestore โดยตรง
+        // แต่เราสามารถบันทึกลง localStorage เป็น fallback
+        localStorage.setItem('quiz-v2-incomplete', data)
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [answers, user, timeStart])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -68,63 +141,187 @@ export default function QuizV2PlayPage() {
   }, [router])
 
   useEffect(() => {
+    // Guard: ตรวจสอบว่า searchParams พร้อมใช้งานแล้ว
+    if (!searchParams) {
+      return
+    }
+
+    // ✅ รอให้ hydrated ก่อนโหลดข้อสอบเพื่อป้องกัน hydration error
+    if (!isHydrated) {
+      return
+    }
+
+    // ดึงค่าพารามิเตอร์ออกมาก่อน เพื่อลด .get() calls
+    const subject = searchParams.get('subject')
+    const topic = searchParams.get('topic')
+    const grade = searchParams.get('grade')
+    const count = parseInt(searchParams.get('count') || '10')
+
+    // ถ้าไม่มีพารามิเตอร์อะไรเลย อาจจะยังไม่พร้อม
+    if (!subject && !topic && !grade && !searchParams.get('count')) {
+      console.log('No search params found, waiting...')
+      return
+    }
+
     const loadQuestions = async () => {
       try {
+        setLoading(true)
+        
         const qSnap = await getDocs(collection(db, 'questions'))
         let questionList = qSnap.docs.map(doc => ({
           id: doc.id,
           ...(doc.data() as Omit<Question, 'id'>),
         }))
 
-        // Apply filters from URL params
-        const subject = searchParams.get('subject')
-        const topic = searchParams.get('topic')
-        const grade = searchParams.get('grade')
-        const count = parseInt(searchParams.get('count') || '10')
+        // ใช้ filter chain แทนการ filter แยก (performance ดีกว่า)
+        questionList = questionList.filter(q => {
+          return (!subject || q.subject === subject) &&
+                 (!topic || q.topic === topic) &&
+                 (!grade || q.grade === parseInt(grade))
+        })
 
-        if (subject) {
-          questionList = questionList.filter(q => q.subject === subject)
-        }
-        if (topic) {
-          questionList = questionList.filter(q => q.topic === topic)
-        }
-        if (grade) {
-          questionList = questionList.filter(q => q.grade === parseInt(grade))
-        }
-
-        // Shuffle and limit questions
-        const shuffled = questionList.sort(() => Math.random() - 0.5)
-        const selectedQuestions = shuffled.slice(0, count)
-
-        if (selectedQuestions.length === 0) {
+        // Early return ถ้าไม่มีข้อสอบ
+        if (questionList.length === 0) {
           setError('ไม่พบข้อสอบที่ตรงกับเงื่อนไข')
+          setLoading(false)
           return
         }
 
+        // ✅ ใช้ fixed seed เพื่อป้องกัน hydration error
+        // สร้าง seed จาก search params แทน timestamp
+        const paramString = `${subject}-${topic}-${grade}-${count}`
+        const shuffleSeed = paramString.split('').reduce((acc, char) => {
+          return acc + char.charCodeAt(0)
+        }, 1000) // เริ่มจาก 1000 เพื่อหลีกเลี่ยงค่า 0
+
+        const shuffled = [...questionList].sort((a, b) => {
+          // ใช้ simple hash function แทน Math.random()
+          const hash = (str: string) => {
+            let hash = 0
+            for (let i = 0; i < str.length; i++) {
+              const char = str.charCodeAt(i)
+              hash = ((hash << 5) - hash) + char
+              hash = hash & hash // Convert to 32bit integer
+            }
+            return hash
+          }
+          
+          const aHash = hash(a.id + shuffleSeed.toString())
+          const bHash = hash(b.id + shuffleSeed.toString())
+          return aHash - bHash
+        })
+        
+        const selectedQuestions = shuffled.slice(0, Math.min(count, questionList.length))
+
         setQuestions(selectedQuestions)
         setQuestionStartTime(Date.now())
+        setError(null) // Clear any previous errors
       } catch (e: any) {
-        console.error(e)
-        setError('โหลดข้อสอบล้มเหลว')
+        console.error('Error loading questions:', e)
+        setError('โหลดข้อสอบล้มเหลว: ' + (e.message || 'ข้อผิดพลาดไม่ทราบสาเหตุ'))
       } finally {
         setLoading(false)
       }
     }
 
     loadQuestions()
-  }, [searchParams])
+  }, [searchParams, isHydrated]) // ✅ ลบ timeStart dependency ออก
+
+  // ฟังก์ชันสำหรับบันทึกคำตอบทั้งหมดยกชุด (performance ดีกว่า)
+  const saveAllAnswersToFirebase = async (allAnswers: Answer[]) => {
+    // ✅ เพิ่ม validation และ early return
+    if (!allAnswers || allAnswers.length === 0) {
+      console.log('No answers to save')
+      return
+    }
+
+    // ✅ รองรับ Guest Mode - ไม่บังคับต้องมี user
+    const isGuestMode = !user && localStorage.getItem('quizcat-guest-mode') === 'true'
+    
+    if (!user && !isGuestMode) {
+      console.log('No user logged in and not in guest mode, skipping Firebase save')
+      return
+    }
+
+    try {
+      console.log('💾 Saving', allAnswers.length, 'answers to Firebase...')
+      setIsSaving(true) // ✅ เริ่มแสดง saving indicator
+      setSaveError(null) // Clear previous errors
+      
+      // ใช้ Firestore batch เพื่อบันทึกยกชุด
+      const batch = writeBatch(db)
+      const collectionRef = collection(db, 'quiz_v2_answers')
+
+      allAnswers.forEach((answer) => {
+        // สร้าง document reference ใหม่สำหรับแต่ละคำตอบ
+        const docRef = doc(collectionRef)
+        
+        // ตรวจสอบและทำความสะอาดข้อมูลก่อนบันทึก
+        const cleanAnswer = {
+          ...answer,
+          userId: user?.uid || 'guest',
+          userEmail: user?.email || 'guest@quizcat.local',
+          timestamp: serverTimestamp(),
+          quizSession: timeStart,
+          isGuestMode: isGuestMode,
+          // ให้แน่ใจว่าไม่มีค่า undefined
+          subject: answer.subject || 'ไม่ระบุ',
+          topic: answer.topic || 'ไม่ระบุ',
+          difficulty: answer.difficulty || 'medium',
+          questionId: answer.questionId || ''
+        }
+        
+        batch.set(docRef, cleanAnswer)
+      })
+
+      // บันทึกทั้งหมดในครั้งเดียว
+      await batch.commit()
+      console.log('✅ Successfully saved all answers to Firebase!')
+      
+      // ✅ ลบ fallback data ที่เก็บไว้ (ถ้ามี)
+      localStorage.removeItem('quiz-v2-incomplete')
+      localStorage.removeItem('quiz-v2-failed-save')
+      
+    } catch (e) {
+      // ✅ จัดการ error แบบเงียบ ๆ แต่ log ไว้ (ไม่ให้ UI พัง)
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error'
+      console.error('❌ Error saving answers to Firebase:', e)
+      setSaveError(errorMessage)
+      
+      // ✅ เก็บไว้ใน localStorage เป็น fallback
+      const fallbackData = {
+        answers: allAnswers,
+        userId: user?.uid || 'guest',
+        userEmail: user?.email || 'guest@quizcat.local',
+        quizSession: timeStart,
+        timestamp: new Date().toISOString(),
+        error: errorMessage
+      }
+      localStorage.setItem('quiz-v2-failed-save', JSON.stringify(fallbackData))
+      
+      // ✅ ไม่ throw error เพื่อไม่ให้ UI พัง - user ยังดูผลได้ปกติ
+    } finally {
+      setIsSaving(false) // ✅ ซ่อน saving indicator
+    }
+  }
 
   const handleAnswer = async () => {
-    if (selectedChoice === null || isSubmitting) return
+    // ✅ เพิ่ม guard สำหรับ confidenceLevel
+    if (selectedChoice === null || confidenceLevel === null || isSubmitting) return
+    
+    // Guard: ตรวจสอบว่ามี currentQuestion
+    const question = questions[currentIndex]
+    if (!question) {
+      console.error('Current question not found')
+      return
+    }
 
     setIsSubmitting(true)
-    const question = questions[currentIndex]
-    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
+    const timeSpent = questionStartTime > 0 ? Math.round((Date.now() - questionStartTime) / 1000) : 0 // ✅ ป้องกัน negative value
     const isCorrect = selectedChoice === question.correctIndex
 
     const answer: Answer = {
       questionId: question.id,
-      question: question.question,
       selectedIndex: selectedChoice,
       correctIndex: question.correctIndex,
       isCorrect,
@@ -135,44 +332,33 @@ export default function QuizV2PlayPage() {
       difficulty: question.difficulty || 'medium'
     }
 
-    setAnswers(prev => [...prev, answer])
+    // ✅ สร้าง newAnswers เพื่อใช้กับทั้ง setAnswers และ saveAllAnswersToFirebase
+    const newAnswers = [...answers, answer]
+    setAnswers(newAnswers)
 
-    // Save to database (only for logged-in users)
-    if (user) {
-      try {
-        // ตรวจสอบและทำความสะอาดข้อมูลก่อนบันทึก
-        const cleanAnswer = {
-          ...answer,
-          userId: user.uid,
-          userEmail: user.email || '',
-          timestamp: serverTimestamp(),
-          quizSession: timeStart,
-          // ให้แน่ใจว่าไม่มีค่า undefined
-          subject: answer.subject || 'ไม่ระบุ',
-          topic: answer.topic || 'ไม่ระบุ',
-          difficulty: answer.difficulty || 'medium',
-          question: answer.question || '',
-          questionId: answer.questionId || ''
-        }
-        
-        await addDoc(collection(db, 'quiz_v2_answers'), cleanAnswer)
-      } catch (e) {
-        console.error('Error saving answer:', e)
-      }
-    }
-
-    // Move to next question or show results
-    setTimeout(() => {
-      if (currentIndex + 1 < questions.length) {
+    // ✅ ปรับปรุงประสิทธิภาพ: ลดเวลา delay และแยก logic
+    const isLastQuestion = currentIndex + 1 >= questions.length
+    
+    if (isLastQuestion) {
+      // ✅ ข้อสุดท้าย - แสดงผลทันทีเลย (ไม่ต้องรอ)
+      setShowResult(true)
+      setIsSubmitting(false)
+      
+      // ✅ บันทึก Firebase แบบ async background
+      saveAllAnswersToFirebase(newAnswers).catch(err => {
+        console.error('Background save failed:', err)
+      })
+    } else {
+      // ✅ ข้อปกติ - หน่วงเวลาสั้น ๆ เพื่อให้เห็น feedback แล้วไปข้อต่อไป
+      setTimeout(() => {
         setCurrentIndex(currentIndex + 1)
         setSelectedChoice(null)
-        setConfidenceLevel('confident')
+        setConfidenceLevel(null) // ✅ เปลี่ยนเป็น null เพื่อบังคับให้เลือกใหม่
         setQuestionStartTime(Date.now())
-      } else {
-        setShowResult(true)
-      }
-      setIsSubmitting(false)
-    }, 1500)
+        setCurrentTime(0) // ✅ Reset timer
+        setIsSubmitting(false)
+      }, 300) // ✅ ลดจาก 1500ms เหลือ 300ms
+    }
   }
 
   const calculateStats = () => {
@@ -208,16 +394,25 @@ export default function QuizV2PlayPage() {
       bySubject,
       byConfidence,
       avgTime,
-      totalTime: Math.round((Date.now() - timeStart) / 1000)
+      totalTime: timeStart > 0 ? Math.round((Date.now() - timeStart) / 1000) : 0 // ✅ ป้องกัน negative value
     }
   }
 
-  if (loading) {
+  // Loading state - รวมการตรวจสอบหลายเงื่อนไข รวมทั้ง hydration
+  if (loading || !searchParams || questions.length === 0 || !isHydrated) {
     return (
       <ThemedLayout>
-        <p className="p-6 text-center" style={{ color: theme.textColor }}>
-          ⏳ กำลังโหลดข้อสอบ...
-        </p>
+        <div className="p-6 text-center" style={{ color: theme.textColor }} suppressHydrationWarning>
+          <div className="animate-spin w-8 h-8 border-4 border-t-transparent rounded-full mx-auto mb-4" 
+               style={{ borderColor: theme.textColor + '40', borderTopColor: 'transparent' }}></div>
+          <p>⏳ กำลังโหลดข้อสอบ...</p>
+          {!searchParams && (
+            <p className="text-sm mt-2 opacity-70">กำลังเตรียมพารามิเตอร์...</p>
+          )}
+          {!isHydrated && (
+            <p className="text-sm mt-2 opacity-70">กำลังเตรียมระบบ...</p>
+          )}
+        </div>
       </ThemedLayout>
     )
   }
@@ -225,7 +420,7 @@ export default function QuizV2PlayPage() {
   if (error) {
     return (
       <ThemedLayout>
-        <div className="p-6 text-center">
+        <div className="p-6 text-center" suppressHydrationWarning>
           <p style={{ color: '#ef4444' }} className="mb-4">❌ {error}</p>
           <button
             onClick={() => router.push('/quiz/v2/select')}
@@ -244,7 +439,7 @@ export default function QuizV2PlayPage() {
     
     return (
       <ThemedLayout>
-        <main className="p-6 max-w-4xl mx-auto space-y-6">
+        <main className="p-6 max-w-4xl mx-auto space-y-6" suppressHydrationWarning>
           <div className="text-center mb-8">
             <h1 
               className="text-4xl font-bold mb-2"
@@ -415,6 +610,34 @@ export default function QuizV2PlayPage() {
               🏠 กลับหน้าหลัก
             </button>
           </div>
+
+          {/* ✅ Saving Indicator - แสดงสถานะการบันทึก */}
+          {isSaving && (
+            <div className="text-center">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <div 
+                  className="animate-spin w-4 h-4 border-2 border-t-transparent rounded-full"
+                  style={{ borderColor: '#3b82f6', borderTopColor: 'transparent' }}
+                ></div>
+                <p className="text-sm" style={{ color: '#3b82f6' }}>
+                  📡 กำลังบันทึกผล...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ✅ Save Success/Error Indicator */}
+          {!isSaving && saveError && (
+            <p className="text-sm text-center mt-2" style={{ color: '#f59e0b' }}>
+              ⚠️ บันทึกไม่สำเร็จ แต่ข้อมูลถูกเก็บไว้ในอุปกรณ์แล้ว
+            </p>
+          )}
+          
+          {!isSaving && !saveError && answers.length > 0 && (
+            <p className="text-sm text-center mt-2" style={{ color: '#10b981' }}>
+              ✅ บันทึกผลสำเร็จแล้ว
+            </p>
+          )}
         </main>
       </ThemedLayout>
     )
@@ -423,9 +646,20 @@ export default function QuizV2PlayPage() {
   const currentQuestion = questions[currentIndex]
   const progress = ((currentIndex) / questions.length) * 100
 
+  // Guard: ตรวจสอบว่ามี currentQuestion และ questions โหลดเสร็จแล้ว
+  if (!currentQuestion || questions.length === 0) {
+    return (
+      <ThemedLayout>
+        <p className="p-6 text-center" style={{ color: theme.textColor }} suppressHydrationWarning>
+          ⏳ กำลังเตรียมข้อสอบ...
+        </p>
+      </ThemedLayout>
+    )
+  }
+
   return (
     <ThemedLayout>
-      <main className="p-6 max-w-3xl mx-auto space-y-6">
+      <main className="p-6 max-w-3xl mx-auto space-y-6" suppressHydrationWarning={!isHydrated}>
         {/* Header */}
         <div className="text-center">
           <h1 
@@ -463,18 +697,18 @@ export default function QuizV2PlayPage() {
         >
           <div className="flex justify-between items-start mb-4">
             <div style={{ color: theme.textColor + '70' }} className="text-sm">
-              📚 {currentQuestion.subject} | 📖 {currentQuestion.topic}
+              📚 {currentQuestion.subject || 'ไม่ระบุ'} | 📖 {currentQuestion.topic || 'ไม่ระบุ'}
             </div>
             <div 
               className="px-2 py-1 rounded text-xs"
               style={{ 
-                backgroundColor: currentQuestion.difficulty === 'easy' ? '#10b981' :
-                                currentQuestion.difficulty === 'medium' ? '#f59e0b' : '#ef4444',
+                backgroundColor: (currentQuestion.difficulty === 'easy') ? '#10b981' :
+                                (currentQuestion.difficulty === 'medium') ? '#f59e0b' : '#ef4444',
                 color: '#ffffff'
               }}
             >
-              {currentQuestion.difficulty === 'easy' ? '📗 ง่าย' :
-               currentQuestion.difficulty === 'medium' ? '📘 ปานกลาง' : '📕 ยาก'}
+              {(currentQuestion.difficulty === 'easy') ? '📗 ง่าย' :
+               (currentQuestion.difficulty === 'medium') ? '📘 ปานกลาง' : '📕 ยาก'}
             </div>
           </div>
           
@@ -482,12 +716,12 @@ export default function QuizV2PlayPage() {
             className="text-xl font-medium mb-6"
             style={{ color: theme.textColor }}
           >
-            {currentQuestion.question}
+            {currentQuestion.question || 'ไม่พบคำถาม'}
           </h2>
 
           {/* Choices */}
           <div className="space-y-3">
-            {currentQuestion.choices.map((choice, index) => (
+            {(currentQuestion.choices || []).map((choice, index) => (
               <button
                 key={index}
                 onClick={() => setSelectedChoice(index)}
@@ -542,17 +776,17 @@ export default function QuizV2PlayPage() {
         {/* Submit Button */}
         <button
           onClick={handleAnswer}
-          disabled={selectedChoice === null || isSubmitting}
-          className="w-full py-4 rounded-lg font-bold text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02]"
+          disabled={selectedChoice === null || confidenceLevel === null || isSubmitting} // ✅ เพิ่ม confidenceLevel === null
+          className="w-full py-4 rounded-lg font-bold text-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-default hover:scale-[1.02]"
           style={{
-            background: selectedChoice !== null 
-              ? 'linear-gradient(45deg, #10b981, #059669)' 
+            background: selectedChoice !== null && confidenceLevel !== null // ✅ เพิ่มเงื่อนไข confidenceLevel
+              ? (isSubmitting ? '#059669' : 'linear-gradient(45deg, #10b981, #059669)')
               : theme.textColor + '40',
             color: '#ffffff'
           }}
         >
           {isSubmitting ? 
-            '⏳ กำลังบันทึก...' : 
+            '✅ กำลังบันทึก...' : 
             currentIndex + 1 === questions.length ? 
               '🏁 ส่งคำตอบและดูผล' : 
               '➡️ ข้อถัดไป'
@@ -563,8 +797,9 @@ export default function QuizV2PlayPage() {
         <div 
           className="text-center text-sm"
           style={{ color: theme.textColor + '70' }}
+          suppressHydrationWarning
         >
-          ⏱️ เวลาที่ใช้: {Math.round((Date.now() - questionStartTime) / 1000)} วินาที
+          ⏱️ เวลาที่ใช้: {currentTime} วินาที
         </div>
       </main>
     </ThemedLayout>

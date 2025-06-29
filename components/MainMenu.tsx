@@ -28,7 +28,6 @@ const menuItems = [
   // 🔹 แอดมิน
   { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false }, // เปลี่ยนไอคอนให้ดูแยกออก
   { label: "วิเคราะห์ความเข้าใจ", path: "/analysis", icon: "📊", guestAllowed: false },
-  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈", guestAllowed: true },
   
   // 🔹 ออกจากระบบ
   { label: "ออกจากระบบ", path: "/login", icon: "🚪", guestAllowed: true },

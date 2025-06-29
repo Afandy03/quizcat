@@ -23,8 +23,10 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
         backgroundColor: theme.bgColor,
         color: theme.textColor,
         minHeight: "100vh",
-        transition: "all .2s ease",
+        // ✅ ปรับปรุง transition ให้เฉพาะสีเท่านั้น และเร็วขึ้น
+        transition: "background-color 0.15s ease, color 0.15s ease",
       }}
+      suppressHydrationWarning // ✅ เพิ่ม suppressHydrationWarning เพื่อป้องกัน theme hydration error
     >
       {/* ✅ เมนูด้านซ้าย */}
       <MainMenu />

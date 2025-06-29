@@ -13,10 +13,36 @@ interface Theme {
 }
 
 export function useUserTheme() {
-  // ตั้งค่าเริ่มต้นเป็น ขาว/ดำ กันหน้าเว็บพังตอนโหลด
-  const [theme, setTheme] = useState<Theme>({
-    bgColor: "#ffffff",
-    textColor: "#000000",
+  // ✅ ปรับปรุง: โหลด theme จาก localStorage ก่อนเพื่อป้องกันการ flash
+  const [theme, setTheme] = useState<Theme>(() => {
+    // ✅ SSR-safe: ตรวจสอบว่าอยู่ใน browser ก่อน
+    if (typeof window === 'undefined') {
+      return { bgColor: "#ffffff", textColor: "#000000" }
+    }
+
+    try {
+      // ✅ โหลด theme จาก localStorage ก่อนเพื่อป้องกัน flash
+      const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+      
+      if (isGuestMode) {
+        const savedTheme = localStorage.getItem('quizcat-guest-theme')
+        if (savedTheme) {
+          return JSON.parse(savedTheme)
+        }
+      } else {
+        // ✅ สำหรับ user ปกติ ลองโหลดจาก localStorage cache ก่อน
+        const cachedTheme = localStorage.getItem('quizcat-user-theme-cache')
+        if (cachedTheme) {
+          return JSON.parse(cachedTheme)
+        }
+      }
+    } catch (error) {
+      // ✅ เงียบ ๆ และใช้ค่า default
+      console.error('Error loading theme from localStorage:', error)
+    }
+
+    // Default fallback
+    return { bgColor: "#ffffff", textColor: "#000000" }
   })
 
   // อัปเดต CSS variables เมื่อ theme เปลี่ยน
@@ -58,11 +84,15 @@ export function useUserTheme() {
           // เช็คว่าในข้อมูล user มี field ที่ชื่อ theme อยู่มั้ย
           if (userData.theme) {
             setTheme(userData.theme) // ถ้ามี ก็เอาค่าที่เซฟไว้มาใช้
+            // ✅ Cache theme ไว้ใน localStorage เพื่อโหลดเร็วครั้งต่อไป
+            localStorage.setItem('quizcat-user-theme-cache', JSON.stringify(userData.theme))
           }
         }
       } else {
         // ถ้าไม่มี user login, ก็ใช้ค่าเริ่มต้นไป
         setTheme({ bgColor: "#ffffff", textColor: "#000000" })
+        // ✅ ลบ cache ออก
+        localStorage.removeItem('quizcat-user-theme-cache')
       }
     })
 
@@ -76,4 +106,15 @@ export function useUserTheme() {
 // ฟังก์ชันสำหรับบันทึก theme ของ guest
 export function saveGuestTheme(theme: Theme) {
   localStorage.setItem('quizcat-guest-theme', JSON.stringify(theme))
+}
+
+// ✅ ฟังก์ชันสำหรับอัปเดต cache theme (เรียกใช้เมื่อเปลี่ยนธีม)
+export function updateThemeCache(theme: Theme) {
+  const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+  
+  if (isGuestMode) {
+    localStorage.setItem('quizcat-guest-theme', JSON.stringify(theme))
+  } else {
+    localStorage.setItem('quizcat-user-theme-cache', JSON.stringify(theme))
+  }
 }
