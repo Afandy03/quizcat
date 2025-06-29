@@ -61,9 +61,9 @@ export default function ChoiceButton({
     } else {
       // ปุ่มอื่นๆ ที่ไม่ถูกเลือกและไม่ใช่คำตอบที่ถูก
       buttonStyle = {
-        backgroundColor: "#f3f4f6", // สีเทาอ่อน (gray-100)
-        color: "#6b7280", // สีเทา (gray-500)
-        border: "1px solid #e5e7eb",
+        backgroundColor: theme.textColor + "10", // ใช้สีจาก theme แต่โปร่งใส
+        color: theme.textColor + "70", // ใช้สีจาก theme แต่จาง
+        border: `1px solid ${theme.textColor}20`,
         // แก้ไข: ลบ opacity: 0.7 ออกตามที่คุณต้องการ
       };
     }
@@ -76,9 +76,16 @@ export default function ChoiceButton({
       className={`
         w-full text-left px-5 py-3 rounded-2xl font-medium
         shadow-sm 
-        ${isAnswering || finished ? 'cursor-not-allowed' : 'hover:bg-gray-100 cursor-pointer'}
+        ${isAnswering || finished ? 'cursor-not-allowed' : 'cursor-pointer'}
       `}
-      style={buttonStyle}
+      style={{
+        ...buttonStyle,
+        ...(!(isAnswering || finished) && {
+          '&:hover': {
+            backgroundColor: theme.textColor + "20"
+          }
+        })
+      }}
     >
       {choice}
     </button>

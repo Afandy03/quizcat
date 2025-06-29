@@ -14,7 +14,7 @@ import { db } from "@/lib/firebase";
 import { normalizeKey } from "@/lib/normalizeKey";
 
 interface Props {
-  user: any;
+  user: { uid: string; email: string } | null;
 }
 
 export default function useAnswerQuestion({ user }: Props) {
@@ -27,7 +27,15 @@ export default function useAnswerQuestion({ user }: Props) {
     correct,
     timeStart, // ✅ รับเวลาที่เริ่มทำข้อสอบเข้ามา
   }: {
-    question: any;
+    question: {
+      id?: string;
+      question: string;
+      choices: string[];
+      correctIndex: number;
+      subject: string;
+      topic: string;
+      grade: number;
+    };
     selectedIndex: number;
     confidenceLevel: "confident" | "not_confident" | "guess";
     correct?: boolean;

@@ -15,15 +15,34 @@ export default function DashboardPage() {
     name: '',
     avatarUrl: '',
   })
+  const [isGuest, setIsGuest] = useState(false)
 
   const router = useRouter()
 
   useEffect(() => {
+    // สำหรับ authenticated users
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        // ตรวจสอบ guest mode เฉพาะเมื่อไม่มี authenticated user
+        const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+        if (isGuestMode) {
+          setIsGuest(true)
+          setUserData({
+            points: 0,
+            name: 'ผู้เยี่ยมชม',
+            avatarUrl: '',
+          })
+          return
+        }
         router.push('/login')
         return
       }
+      
+      // ถ้ามี authenticated user แล้ว ลบ guest session ออก
+      localStorage.removeItem('quizcat-guest-id')
+      localStorage.removeItem('quizcat-guest-mode')
+      setIsGuest(false)
+      
       const ref = doc(db, 'users', user.uid)
       const snap = await getDoc(ref)
       if (snap.exists()) {
@@ -39,10 +58,15 @@ export default function DashboardPage() {
       }
     })
     return () => unsub()
-  }, [])
+  }, [router])
 
   const handleSignOut = async () => {
-    if (auth.currentUser) {
+    if (isGuest) {
+      // ลบ guest session
+      localStorage.removeItem('quizcat-guest-id')
+      localStorage.removeItem('quizcat-guest-mode')
+      router.push('/login')
+    } else if (auth.currentUser) {
       await signOut(auth)
       router.push('/login')
     }
@@ -67,9 +91,14 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold mt-2 text-center">
             👋 ยินดีต้อนรับ, {userData.name || 'ผู้ใช้'}!
           </h1>
+          {isGuest && (
+            <div className="bg-amber-100 border border-amber-300 text-amber-800 px-4 py-2 rounded-lg text-center mt-2">
+              🎭 คุณอยู่ในโหมดผู้เยี่ยมชม - คะแนนจะไม่ถูกบันทึก
+            </div>
+          )}
         </div>
 
-        <UserPoints points={userData.points} />
+        {!isGuest && <UserPoints points={userData.points} />}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link

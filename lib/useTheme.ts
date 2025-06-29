@@ -13,13 +13,39 @@ interface Theme {
 }
 
 export function useUserTheme() {
-  // ตั้งค่าเริ่มต้นเป็น ดำ/ขาว กันหน้าเว็บพังตอนโหลด
+  // ตั้งค่าเริ่มต้นเป็น ขาว/ดำ กันหน้าเว็บพังตอนโหลด
   const [theme, setTheme] = useState<Theme>({
-    bgColor: "#000000",
-    textColor: "#ffffff",
+    bgColor: "#ffffff",
+    textColor: "#000000",
   })
 
+  // อัปเดต CSS variables เมื่อ theme เปลี่ยน
   useEffect(() => {
+    document.documentElement.style.setProperty('--background', theme.bgColor)
+    document.documentElement.style.setProperty('--foreground', theme.textColor)
+  }, [theme])
+
+  useEffect(() => {
+    // ตรวจสอบ guest mode ก่อน
+    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+    
+    if (isGuestMode) {
+      // สำหรับ guest ใช้ theme จาก localStorage
+      const savedTheme = localStorage.getItem('quizcat-guest-theme')
+      if (savedTheme) {
+        try {
+          const parsedTheme = JSON.parse(savedTheme)
+          setTheme(parsedTheme)
+        } catch (error) {
+          console.error('Error parsing guest theme:', error)
+          setTheme({ bgColor: "#ffffff", textColor: "#000000" }) // default สำหรับ guest
+        }
+      } else {
+        setTheme({ bgColor: "#ffffff", textColor: "#000000" }) // default สำหรับ guest
+      }
+      return
+    }
+
     // onAuthStateChanged จะคอยฟังว่าสถานะ login เปลี่ยนไปมั้ย (login, logout)
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -36,7 +62,7 @@ export function useUserTheme() {
         }
       } else {
         // ถ้าไม่มี user login, ก็ใช้ค่าเริ่มต้นไป
-        setTheme({ bgColor: "#000000", textColor: "#ffffff" })
+        setTheme({ bgColor: "#ffffff", textColor: "#000000" })
       }
     })
 
@@ -45,4 +71,9 @@ export function useUserTheme() {
   }, []) // useEffect นี้จะทำงานแค่ครั้งเดียวตอน component โหลด
 
   return theme // คืนค่า theme ที่ได้ไปให้ layout
+}
+
+// ฟังก์ชันสำหรับบันทึก theme ของ guest
+export function saveGuestTheme(theme: Theme) {
+  localStorage.setItem('quizcat-guest-theme', JSON.stringify(theme))
 }

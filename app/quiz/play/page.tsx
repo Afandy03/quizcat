@@ -9,7 +9,7 @@ import ThemedLayout from "@/components/ThemedLayout";
 import ChatBot from "@/components/ChatBot";
 import ProgressBar from "@/components/ProgressBar";
 import ChoiceButton from "@/components/ChoiceButton";
-import CurrentQuestion from "@/components/CurrentQuestion";
+import CurrentQuestionDisplay from "@/components/CurrentQuestionDisplay";
 import ConfidenceSelector from "@/components/ConfidenceSelector";
 import QuizSummary from "@/components/QuizSummary";
 
@@ -48,10 +48,17 @@ export default function QuizPlayPage() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      
+      // ตรวจสอบ guest mode
       if (!u) {
-        router.push("/login");
+        const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+        if (!isGuestMode) {
+          router.push("/login");
+        }
       } else {
-        setUser(u);
+        // ถ้า login แล้ว ลบ guest session
+        localStorage.removeItem('quizcat-guest-mode')
       }
     });
     return () => unsubscribe();
@@ -68,7 +75,6 @@ export default function QuizPlayPage() {
       selectedIndex,
       confidenceLevel,
       timeStart: elapsedTime,
-      currentScore: score,
     });
 
     const isCorrect = selectedIndex === q.correctIndex;
@@ -110,8 +116,8 @@ export default function QuizPlayPage() {
     }
   };
 
-  if (loading) return <ThemedLayout><p className="p-6 text-gray-500">⏳ กำลังโหลด...</p></ThemedLayout>;
-  if (error) return <ThemedLayout><p className="p-6 text-red-500">{error}</p></ThemedLayout>;
+  if (loading) return <ThemedLayout><p className="p-6" style={{ color: theme.textColor + '80' }}>⏳ กำลังโหลด...</p></ThemedLayout>;
+  if (error) return <ThemedLayout><p className="p-6" style={{ color: '#ef4444' }}>{error}</p></ThemedLayout>;
   if (questions.length === 0) return null;
 
   const q = questions[current];
@@ -134,13 +140,17 @@ export default function QuizPlayPage() {
               }}
             />
 
-            <CurrentQuestion question={q} current={current} />
+            <CurrentQuestionDisplay question={q} current={current} />
 
             <div className="flex justify-end">
               <button
                 onClick={() => setShowChat(true)}
                 disabled={isAnswering}
-                className="flex items-center gap-2 text-sm text-white bg-gradient-to-r from-blue-500 to-blue-700 px-4 py-2 rounded-full shadow-md hover:from-blue-600 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 text-sm px-4 py-2 rounded-full shadow-md disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                style={{
+                  background: 'linear-gradient(to right, #3b82f6, #1d4ed8)',
+                  color: '#ffffff'
+                }}
               >
                 💬 ถามบังฟันดี้
               </button>
@@ -180,7 +190,11 @@ export default function QuizPlayPage() {
                 <button
                   onClick={handleConfirmAnswer}
                   disabled={answerLoading}
-                  className="w-full px-6 py-4 bg-green-600 text-white rounded-xl shadow-lg hover:bg-green-700 font-bold text-lg disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="w-full px-6 py-4 rounded-xl shadow-lg font-bold text-lg disabled:cursor-not-allowed disabled:opacity-50 hover:opacity-90 transition-opacity"
+                  style={{
+                    backgroundColor: '#10b981',
+                    color: '#ffffff'
+                  }}
                 >
                   {answerLoading ? 'กำลังส่งคำตอบ...' : '✅ ยืนยันคำตอบ'}
                 </button>
@@ -191,7 +205,11 @@ export default function QuizPlayPage() {
               <button
                 onClick={onSkip}
                 disabled={isAnswering}
-                className="px-5 py-3 bg-gradient-to-r from-gray-600 to-gray-800 text-white rounded-xl shadow-md hover:from-gray-700 hover:to-black disabled:opacity-50"
+                className="px-5 py-3 rounded-xl shadow-md disabled:opacity-50 hover:opacity-80 transition-opacity"
+                style={{
+                  background: 'linear-gradient(to right, #4b5563, #1f2937)',
+                  color: '#ffffff'
+                }}
               >
                 ⏭️ ข้ามข้อนี้ไปก่อน
               </button>
@@ -202,25 +220,35 @@ export default function QuizPlayPage() {
               onChange={(level) => setConfidenceLevel(level)}
             />
 
-            <div className="text-sm text-gray-800 bg-white rounded-xl shadow-inner px-6 py-4 space-y-1 border border-gray-200 text-left">
+            <div 
+              className="text-sm rounded-xl shadow-inner px-6 py-4 space-y-1 border text-left"
+              style={{
+                color: theme.textColor,
+                backgroundColor: theme.bgColor,
+                borderColor: theme.textColor + '20'
+              }}
+            >
               <div className="flex justify-between items-center">
                 <span>⏱ เวลาข้อนี้:</span>
-                <span className="font-bold text-blue-600">{elapsedTime} วินาที</span>
+                <span className="font-bold" style={{ color: '#3b82f6' }}>{elapsedTime} วินาที</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>⌛ เวลารวม:</span>
-                <span className="font-bold text-indigo-500">{totalElapsedTime} วินาที</span>
+                <span className="font-bold" style={{ color: '#6366f1' }}>{totalElapsedTime} วินาที</span>
               </div>
               <div className="flex justify-between items-center">
                 <span>💰 แต้มสะสม:</span>
-                <span className="font-bold text-green-600">{score} แต้ม</span>
+                <span className="font-bold" style={{ color: '#10b981' }}>{score} แต้ม</span>
               </div>
-              <div className={`flex justify-between items-center pt-2 border-t mt-2 text-sm ${lastResult ? 'visible' : 'invisible'}`}>
+              <div 
+                className={`flex justify-between items-center pt-2 border-t mt-2 text-sm ${lastResult ? 'visible' : 'invisible'}`}
+                style={{ borderColor: theme.textColor + '20' }}
+              >
                 <span>ผลลัพธ์ข้อที่ผ่านมา:</span>
                 {lastResult?.correct ? (
-                  <span className="text-green-600 font-bold">🎯 +10 แต้ม</span>
+                  <span className="font-bold" style={{ color: '#10b981' }}>🎯 +10 แต้ม</span>
                 ) : (
-                  <span className="text-red-500 font-bold">❌ ไม่ได้แต้ม</span>
+                  <span className="font-bold" style={{ color: '#ef4444' }}>❌ ไม่ได้แต้ม</span>
                 )}
               </div>
             </div>

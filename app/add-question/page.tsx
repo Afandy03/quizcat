@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { db } from "@/lib/firebase";
 import { addDoc, collection, getDocs, serverTimestamp } from "firebase/firestore";
 import ThemedLayout from "@/components/ThemedLayout";
@@ -9,6 +10,7 @@ import Papa from "papaparse";
 const choiceLabels = ["ก", "ข", "ค", "ง"];
 
 export default function AddQuestionPage() {
+  const router = useRouter();
   const [mode, setMode] = useState<"manual" | "csv">("manual");
 
   const [question, setQuestion] = useState("");
@@ -29,6 +31,13 @@ export default function AddQuestionPage() {
   };
 
   useEffect(() => {
+    // ตรวจสอบ guest mode - ไม่อนุญาตให้ guest เพิ่มข้อสอบ
+    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
+    if (isGuestMode) {
+      router.push("/dashboard");
+      return;
+    }
+
     const loadMeta = async () => {
       const snap = await getDocs(collection(db, "questions"));
       const subSet = new Set<string>();
@@ -46,7 +55,7 @@ export default function AddQuestionPage() {
 
   const handleSubmit = async () => {
     if (!question.trim() || choices.some((c) => !c.trim()) || !subject.trim() || !topic.trim()) {
-      alert("กรอกให้ครบก่อนมึง");
+      alert("กรุณากรอกข้อมูลให้ครบถ้วน");
       return;
     }
 

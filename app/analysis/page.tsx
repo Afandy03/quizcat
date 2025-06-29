@@ -8,10 +8,12 @@ import SummaryChart from "@/components/SummaryChart"
 import AnswerSection from "@/components/AnswerSection"
 import { normalizeKey } from "@/lib/normalizeKey"
 import { formatTime } from "@/lib/formatters"
+import { useUserTheme } from "@/lib/useTheme"
 
 export default function AnalysisPage() {
   const { answers, summary, insights, loading, deleteAnswer } = useFetchAnswers()
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
+  const theme = useUserTheme()
 
   const toggleExpand = (section: string) => {
     setExpandedSection(prev => prev === section ? null : section)
@@ -34,15 +36,37 @@ export default function AnalysisPage() {
   return (
     <ThemedLayout>
       <div className="p-6 max-w-4xl mx-auto space-y-6">
-        <h1 className="text-3xl font-bold text-center text-purple-800">📊 วิเคราะห์ผลของคุณ</h1>
+        <h1 
+          className="text-3xl font-bold text-center"
+          style={{ color: '#7c3aed' }}
+        >
+          📊 วิเคราะห์ผลของคุณ
+        </h1>
 
         {loading ? (
-          <p className="text-center text-gray-500">กำลังโหลด...</p>
+          <p 
+            className="text-center"
+            style={{ color: theme.textColor + '80' }}
+          >
+            กำลังโหลด...
+          </p>
         ) : !insights || summary.length === 0 ? (
-          <p className="text-center text-gray-500">ยังไม่มีข้อมูลให้วิเคราะห์</p>
+          <p 
+            className="text-center"
+            style={{ color: theme.textColor + '80' }}
+          >
+            ยังไม่มีข้อมูลให้วิเคราะห์
+          </p>
         ) : (
           <>
-            <div className="bg-yellow-50 border border-yellow-300 p-4 rounded-xl shadow-sm space-y-1 text-sm">
+            <div 
+              className="border p-4 rounded-xl shadow-sm space-y-1 text-sm"
+              style={{
+                backgroundColor: '#fef3c7',
+                borderColor: '#f59e0b',
+                color: '#92400e'
+              }}
+            >
               <p>📝 ตอบทั้งหมด <strong>{insights.total}</strong> ข้อ</p>
               <p>🎯 คะแนนเฉลี่ย: <strong>{(insights.avgScore * 100).toFixed(0)}%</strong></p>
               <p>⏱️ เวลาเฉลี่ยต่อข้อ: <strong>{formatTime(insights.avgTime)}</strong></p>
