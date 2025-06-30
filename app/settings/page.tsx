@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { doc, updateDoc } from 'firebase/firestore'
-import { useUserTheme, saveGuestTheme } from '@/lib/useTheme'
+import { useUserTheme, saveGuestTheme, getBackgroundStyle } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export default function SettingsPage() {
-  const currentTheme = useUserTheme()
+  const { theme: currentTheme, isLoading } = useUserTheme()
   const [isGuest, setIsGuest] = useState(false)
 
   const [bgColor, setBgColor] = useState<string>(currentTheme.bgColor)
@@ -181,8 +181,7 @@ export default function SettingsPage() {
               <div 
                 className="rounded-xl shadow-lg p-6"
                 style={{
-                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
-                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  ...getBackgroundStyle(currentTheme.bgColor),
                   color: currentTheme.textColor,
                   border: `1px solid ${currentTheme.textColor}20`
                 }}
@@ -255,8 +254,7 @@ export default function SettingsPage() {
                       <motion.div 
                         className="w-8 h-8 rounded-full mb-2 flex items-center justify-center relative"
                         style={{ 
-                          background: preset.bg.includes('gradient') ? preset.bg : undefined,
-                          backgroundColor: !preset.bg.includes('gradient') ? preset.bg : undefined,
+                          ...getBackgroundStyle(preset.bg),
                           border: `2px solid ${currentTheme.textColor}40`
                         }}
                         whileHover={{ rotate: 360 }}
@@ -293,8 +291,7 @@ export default function SettingsPage() {
               <div 
                 className="rounded-xl shadow-lg p-6"
                 style={{
-                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
-                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  ...getBackgroundStyle(currentTheme.bgColor),
                   color: currentTheme.textColor,
                   border: `1px solid ${currentTheme.textColor}20`
                 }}
@@ -406,8 +403,7 @@ export default function SettingsPage() {
               <div 
                 className="rounded-xl shadow-lg p-6"
                 style={{
-                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
-                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  ...getBackgroundStyle(currentTheme.bgColor),
                   color: currentTheme.textColor,
                   border: `1px solid ${currentTheme.textColor}20`
                 }}
@@ -422,8 +418,7 @@ export default function SettingsPage() {
                 <motion.div
                   className="p-6 rounded-lg text-center font-medium shadow-inner mb-4"
                   style={{
-                    background: bgColor.includes('gradient') ? bgColor : undefined,
-                    backgroundColor: !bgColor.includes('gradient') ? bgColor : undefined,
+                    ...getBackgroundStyle(bgColor),
                     color: textColor,
                     border: `1px solid ${textColor}30`
                   }}
@@ -449,8 +444,7 @@ export default function SettingsPage() {
               <div 
                 className="rounded-xl shadow-lg p-6"
                 style={{
-                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
-                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  ...getBackgroundStyle(currentTheme.bgColor),
                   color: currentTheme.textColor,
                   border: `1px solid ${currentTheme.textColor}20`
                 }}
@@ -465,8 +459,7 @@ export default function SettingsPage() {
                 <motion.div 
                   className="rounded-lg p-4 space-y-3 shadow-md max-w-sm"
                   style={{ 
-                    background: bgColor.includes('gradient') ? bgColor : undefined,
-                    backgroundColor: !bgColor.includes('gradient') ? bgColor : undefined,
+                    ...getBackgroundStyle(bgColor),
                     border: `1px solid ${textColor}40`
                   }}
                   whileHover={{ y: -2 }}

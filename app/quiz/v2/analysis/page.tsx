@@ -27,7 +27,7 @@ export default function QuizV2AnalysisPage() {
   const [answers, setAnswers] = useState<QuizV2Answer[]>([])
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
-  const theme = useUserTheme()
+  const { theme, isLoading } = useUserTheme()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {

@@ -31,7 +31,7 @@ export default function QuizV2SelectPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const theme = useUserTheme()
+  const { theme, isLoading } = useUserTheme()
   const router = useRouter()
 
   useEffect(() => {

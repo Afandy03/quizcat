@@ -49,7 +49,7 @@ export default function QuizV2PlayPage() {
   const [error, setError] = useState<string | null>(null)
   const [showChatBot, setShowChatBot] = useState(false)
 
-  const theme = useUserTheme()
+  const { theme, isLoading } = useUserTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -212,7 +212,7 @@ export default function QuizV2PlayPage() {
     }
   }
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <ThemedLayout>
         <p className="p-6 text-center" style={{ color: theme.textColor }}>

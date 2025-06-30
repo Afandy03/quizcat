@@ -24,7 +24,7 @@ interface Question {
 
 export default function QuizManagePage() {
   const router = useRouter();
-  const theme = useUserTheme();
+  const { theme, isLoading } = useUserTheme();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
