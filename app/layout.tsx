@@ -1,6 +1,7 @@
 // app/layout.tsx
 import './globals.css'
 import ThemeWrapper from '../components/ThemeWrapper'
+import NavigationProgress from '../components/NavigationProgress'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -53,7 +54,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body suppressHydrationWarning>
+      <body>
+        <NavigationProgress />
         <ThemeWrapper>
           {children}
         </ThemeWrapper>

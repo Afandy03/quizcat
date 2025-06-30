@@ -30,20 +30,17 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
     transition: "all .2s ease",
   }
 
-  // Use default styles until component is mounted and theme is loaded
-  const containerStyles = mounted && !isLoading 
-    ? {
-        ...getBackgroundStyle(theme.bgColor),
-        color: theme.textColor,
-        minHeight: "100vh",
-        transition: "all .2s ease",
-      }
-    : defaultStyles
+  // ✅ ใช้ theme ทันทีแม้ว่า component ยังไม่ mounted หรือกำลัง loading
+  // เพื่อป้องกันการแสดง "โหลดกะเทย..." โดยไม่จำเป็น
+  const containerStyles = {
+    ...getBackgroundStyle(theme.bgColor),
+    color: theme.textColor,
+    minHeight: "100vh",
+    transition: "all .2s ease",
+  }
 
   // สำหรับปุ่มกลับหน้าหลัก - ปรับสีให้เข้ากับธีม
   const getButtonStyles = () => {
-    if (!mounted || isLoading) return { backgroundColor: "#333", color: "#fff" }
-    
     const isGradient = theme.bgColor.includes('gradient')
     const isSakura = theme.bgColor.includes('fce7f3') || theme.textColor === '#8b4513'
     const isVintage = theme.bgColor.includes('f9f7ff') || theme.textColor === '#5d4e37'
@@ -68,21 +65,25 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
     }
   }
 
-  // แสดง loading หรือ theme พร้อมแล้ว
-  if (!mounted || isLoading) {
+  // ✅ ไม่แสดง loading screen แล้ว เพราะ theme โหลดจาก cache ทันที
+  // ใช้ theme ที่โหลดมาแล้วเลย ไม่ต้องรอ mounted หรือ isLoading
+  
+  // เฉพาะในกรณีที่ไม่มี theme เลย (กรณีแปลก ๆ) ถึงจะแสดง fallback
+  if (!theme.bgColor && !theme.textColor) {
     return (
       <div
-        style={{
-          backgroundColor: "#ffffff",
-          color: "#000000", 
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+        style={defaultStyles}
         suppressHydrationWarning
       >
-        <div style={{ fontSize: '1.2rem' }}>โหลดกะเทย...</div>
+        <div style={{ 
+          display: "flex",
+          alignItems: "center", 
+          justifyContent: "center",
+          minHeight: "100vh",
+          fontSize: '1.2rem' 
+        }}>
+          เตรียมธีม...
+        </div>
       </div>
     )
   }
