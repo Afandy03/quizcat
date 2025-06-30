@@ -58,7 +58,6 @@ export default function SettingsPage() {
       // สำหรับ guest mode บันทึกใน localStorage
       saveGuestTheme({ bgColor, textColor })
 
-      alert('🎭 บันทึกธีมสำหรับผู้เยี่ยมชมเรียบร้อย! รีโหลดเพื่ออัปเดตธีม')
       location.reload()
       return
     }
@@ -74,7 +73,6 @@ export default function SettingsPage() {
         theme: { bgColor, textColor }
       })
 
-      alert('เปลี่ยนธีมเรียบร้อย! รีโหลดเพื่ออัปเดตธีม')
       location.reload()
     } catch (error: any) {
       console.error('Error updating theme:', error)

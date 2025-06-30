@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { useUserTheme } from '@/lib/useTheme'
+import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 import ChatBot from '@/components/ChatBot'
 
@@ -49,7 +49,7 @@ export default function QuizV2PlayPage() {
   const [error, setError] = useState<string | null>(null)
   const [showChatBot, setShowChatBot] = useState(false)
 
-  const theme = useUserTheme()
+  const { theme, isLoading } = useUserTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -212,7 +212,7 @@ export default function QuizV2PlayPage() {
     }
   }
 
-  if (loading) {
+  if (loading || isLoading) {
     return (
       <ThemedLayout>
         <p className="p-6 text-center" style={{ color: theme.textColor }}>
@@ -304,7 +304,7 @@ export default function QuizV2PlayPage() {
           {/* By Subject Analysis */}
           <div 
             className="rounded-lg p-6"
-            style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
+            style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
           >
             <h3 className="text-xl font-bold mb-4" style={{ color: theme.textColor }}>
               📊 วิเคราะห์ตามวิชา
@@ -351,7 +351,7 @@ export default function QuizV2PlayPage() {
           {/* Confidence Analysis */}
           <div 
             className="rounded-lg p-6"
-            style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
+            style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
           >
             <h3 className="text-xl font-bold mb-4" style={{ color: theme.textColor }}>
               🧠 วิเคราะห์ความมั่นใจ
@@ -465,7 +465,7 @@ export default function QuizV2PlayPage() {
         {/* Question */}
         <div 
           className="rounded-lg p-6"
-          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
+          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
         >
           <div className="flex justify-between items-start mb-4">
             <div style={{ color: theme.textColor + '70' }} className="text-sm">
@@ -493,31 +493,37 @@ export default function QuizV2PlayPage() {
 
           {/* Choices */}
           <div className="space-y-3">
-            {currentQuestion.choices.map((choice, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedChoice(index)}
-                disabled={isSubmitting}
-                className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02] disabled:opacity-50"
-                style={{
-                  backgroundColor: selectedChoice === index ? theme.textColor + '10' : theme.bgColor,
-                  borderColor: selectedChoice === index ? '#3b82f6' : theme.textColor + '30',
-                  color: theme.textColor
-                }}
-              >
-                <span className="font-medium mr-3">
-                  {String.fromCharCode(65 + index)}.
-                </span>
-                {choice}
-              </button>
-            ))}
+            {currentQuestion.choices.map((choice, index) => {
+              const isSelected = selectedChoice === index
+              return (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setSelectedChoice(index);
+                    setConfidenceLevel(null);
+                  }}
+                  className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02]"
+                  style={{
+                    backgroundColor: isSelected ? theme.textColor + '10' : 'transparent',
+                    borderColor: isSelected ? '#3b82f6' : theme.textColor + '30',
+                    color: theme.textColor,
+                    opacity: isSubmitting ? 0.7 : 1
+                  }}
+                >
+                  <span className="font-medium mr-3">
+                    {String.fromCharCode(65 + index)}.
+                  </span>
+                  {choice}
+                </button>
+              )
+            })}
           </div>
         </div>
 
         {/* Confidence Selector */}
         <div 
           className="rounded-lg p-4"
-          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
+          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
         >
           <h3 className="font-medium mb-3" style={{ color: theme.textColor }}>
             🧠 ระดับความมั่นใจในการตอบ:

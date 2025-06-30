@@ -493,24 +493,30 @@ export default function QuizV2PlayPage() {
 
           {/* Choices */}
           <div className="space-y-3">
-            {currentQuestion.choices.map((choice, index) => (
-              <button
-                key={index}
-                onClick={() => setSelectedChoice(index)}
-                disabled={isSubmitting}
-                className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02] disabled:opacity-50"
-                style={{
-                  backgroundColor: selectedChoice === index ? theme.textColor + '10' : theme.bgColor,
-                  borderColor: selectedChoice === index ? '#3b82f6' : theme.textColor + '30',
-                  color: theme.textColor
-                }}
-              >
-                <span className="font-medium mr-3">
-                  {String.fromCharCode(65 + index)}.
-                </span>
-                {choice}
-              </button>
-            ))}
+            {currentQuestion.choices.map((choice, index) => {
+              const isSelected = selectedChoice === index
+              return (
+                <button
+                  key={index}
+                  onClick={() => {
+                    setSelectedChoice(index);
+                    setConfidenceLevel(null);
+                  }}
+                  className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02]"
+                  style={{
+                    backgroundColor: isSelected ? theme.textColor + '10' : 'transparent',
+                    borderColor: isSelected ? '#3b82f6' : theme.textColor + '30',
+                    color: theme.textColor,
+                    opacity: isSubmitting ? 0.7 : 1
+                  }}
+                >
+                  <span className="font-medium mr-3">
+                    {String.fromCharCode(65 + index)}.
+                  </span>
+                  {choice}
+                </button>
+              )
+            })}
           </div>
         </div>
 

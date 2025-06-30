@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme";
 
 export default function ChatBot({
   show,
@@ -14,89 +15,178 @@ export default function ChatBot({
   const [chatInput, setChatInput] = useState("");
   const [chatLog, setChatLog] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const { theme } = useUserTheme();
+
+  // เคลียร์ chat log เมื่อโจทย์เปลี่ยน
+  useEffect(() => {
+    setChatLog([]);
+  }, [question]);
 
   if (!show) return null;
 
   return (
-    <div className="bg-white border border-gray-300 rounded-xl shadow-md p-4 mt-4 text-left space-y-3 text-sm">
+    <div 
+      className="rounded-xl shadow-lg border p-5 mt-4 text-left space-y-4 text-sm backdrop-blur-sm"
+      style={{ 
+        ...getBackgroundStyle(theme.bgColor),
+        borderColor: theme.textColor + '20',
+        boxShadow: `0 8px 32px ${theme.textColor}15`
+      }}
+    >
       {/* Header */}
-      <div className="flex justify-between items-center mb-3">
-        <p className="font-semibold text-blue-600">🤖 บังฟันดี้ช่วยทำข้อสอบ</p>
+      <div className="flex justify-between items-center mb-4">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+            <span className="text-white text-xs">🤖</span>
+          </div>
+          <div>
+            <p className="font-bold text-sm" style={{ color: theme.textColor }}>
+              บังฟันดี้
+            </p>
+            <p className="text-xs" style={{ color: theme.textColor + '70' }}>
+              ผู้ช่วยทำข้อสอบ
+            </p>
+          </div>
+        </div>
         <button
           onClick={onClose}
-          className="text-xs text-gray-500 hover:text-red-500 transition"
+          className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110"
+          style={{ 
+            backgroundColor: theme.textColor + '10',
+            color: theme.textColor + '80'
+          }}
         >
-          ❌ ปิด
+          ✕
         </button>
       </div>
 
       {/* Quick Help Buttons */}
-      <div className="grid grid-cols-2 gap-2 mb-3">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <button
           onClick={() => setChatInput("ข้อนี้ถามอะไรครับ?")}
-          className="text-xs p-2 bg-blue-50 hover:bg-blue-100 rounded border text-blue-700 transition-colors"
+          className="p-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+          style={{ 
+            backgroundColor: '#3b82f6' + '15',
+            borderColor: '#3b82f6' + '30',
+            color: '#3b82f6'
+          }}
         >
-          💭 ถามอะไร?
+          <span>💭</span>
+          <span className="text-xs font-medium">ถามอะไร?</span>
         </button>
         <button
           onClick={() => setChatInput("ตัวเลือกไหนเป็นไปได้บ้าง?")}
-          className="text-xs p-2 bg-green-50 hover:bg-green-100 rounded border text-green-700 transition-colors"
+          className="p-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+          style={{ 
+            backgroundColor: '#10b981' + '15',
+            borderColor: '#10b981' + '30',
+            color: '#10b981'
+          }}
         >
-          🔍 ดูตัวเลือก
+          <span>🔍</span>
+          <span className="text-xs font-medium">ดูตัวเลือก</span>
         </button>
         <button
           onClick={() => setChatInput("คีย์เวิร์ดสำคัญในโจทย์คืออะไร?")}
-          className="text-xs p-2 bg-purple-50 hover:bg-purple-100 rounded border text-purple-700 transition-colors"
+          className="p-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+          style={{ 
+            backgroundColor: '#8b5cf6' + '15',
+            borderColor: '#8b5cf6' + '30',
+            color: '#8b5cf6'
+          }}
         >
-          🔑 คีย์เวิร์ด
+          <span>🔑</span>
+          <span className="text-xs font-medium">คีย์เวิร์ด</span>
         </button>
         <button
           onClick={() => setChatInput("ให้เริ่มต้นคิดยังไงดี?")}
-          className="text-xs p-2 bg-orange-50 hover:bg-orange-100 rounded border text-orange-700 transition-colors"
+          className="p-3 rounded-lg transition-all duration-200 hover:scale-105 flex items-center gap-2"
+          style={{ 
+            backgroundColor: '#f59e0b' + '15',
+            borderColor: '#f59e0b' + '30',
+            color: '#f59e0b'
+          }}
         >
-          🚀 เริ่มยังไง?
+          <span>🚀</span>
+          <span className="text-xs font-medium">เริ่มยังไง?</span>
         </button>
       </div>
 
-      {/* Log */}
-      <div className="max-h-48 overflow-y-auto bg-gray-50 border border-gray-200 rounded-md px-3 py-2 space-y-2">
+      {/* Chat Log */}
+      <div 
+        className="max-h-64 overflow-y-auto rounded-lg border p-4 space-y-3 scroll-smooth"
+        style={{ 
+          backgroundColor: theme.textColor + '05',
+          borderColor: theme.textColor + '15'
+        }}
+      >
         {chatLog.length === 0 ? (
-          <div className="text-center py-4">
-            <p className="text-gray-400 text-xs mb-2">👋 สวัสดี! บังอยู่ตรงนี้</p>
-            <p className="text-gray-500 text-xs">ลองกดปุ่มด้านบนหรือถามคำถามได้เลย</p>
+          <div className="text-center py-8">
+            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-400 to-purple-400 flex items-center justify-center">
+              <span className="text-2xl">👋</span>
+            </div>
+            <p className="text-sm font-medium mb-1" style={{ color: theme.textColor }}>
+              สวัสดี! บังฟันดี้อยู่ตรงนี้
+            </p>
+            <p className="text-xs" style={{ color: theme.textColor + '70' }}>
+              ลองกดปุ่มด้านบนหรือถามคำถามได้เลย
+            </p>
           </div>
         ) : (
           chatLog.map((msg, i) => (
             <div
               key={i}
-              className={`${
+              className={`flex ${
                 msg.startsWith("เรา:")
-                  ? "text-right"
-                  : "text-left"
+                  ? "justify-end"
+                  : "justify-start"
               }`}
             >
-              <p
-                className={`inline-block px-3 py-2 rounded-lg text-xs max-w-[85%] ${
+              <div
+                className={`max-w-[80%] px-4 py-3 rounded-2xl text-sm shadow-sm ${
                   msg.startsWith("เรา:")
-                    ? "bg-blue-500 text-white"
-                    : "bg-white border text-gray-700"
+                    ? "rounded-br-md"
+                    : "rounded-bl-md"
                 }`}
+                style={{
+                  backgroundColor: msg.startsWith("เรา:")
+                    ? '#3b82f6'
+                    : theme.textColor + '10',
+                  color: msg.startsWith("เรา:")
+                    ? '#ffffff'
+                    : theme.textColor,
+                  border: msg.startsWith("เรา:")
+                    ? 'none'
+                    : `1px solid ${theme.textColor}20`
+                }}
               >
                 {msg.replace(/^(เรา:|บังฟันดี้:)\s*/, "")}
-              </p>
+              </div>
             </div>
           ))
         )}
         {isLoading && (
-          <div className="text-left">
-            <p className="inline-block px-3 py-2 rounded-lg text-xs bg-gray-200 text-gray-600">
-              <span className="animate-pulse">บังกำลังคิด...</span>
-            </p>
+          <div className="flex justify-start">
+            <div
+              className="px-4 py-3 rounded-2xl rounded-bl-md text-sm shadow-sm flex items-center gap-2"
+              style={{
+                backgroundColor: theme.textColor + '10',
+                color: theme.textColor + '80',
+                border: `1px solid ${theme.textColor}20`
+              }}
+            >
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-2 h-2 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }}></div>
+              </div>
+              <span>บังกำลังคิด...</span>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Input */}
+      {/* Input Form */}
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -114,14 +204,16 @@ export default function ChatBot({
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                systemPrompt: `คุณคือบังฟันดี้ พี่ติวเตอร์ที่ช่วยเด็กทำข้อสอบแบบเข้าใจ ไม่บอกคำตอบตรงๆ แต่จะค่อยๆ พาให้คิดเอง โดยใช้วิธี:
+                systemPrompt: `คุณคือบังฟันดี้ พี่ติวเตอร์ที่ช่วยเด็กทำข้อสอบแบบเข้าใจ ไม่เฉลยตรงๆ แต่จะค่อยๆ พาให้คิดเอง ด้วยวิธี:
 
-1. **อธิบายโจทย์**: ช่วยแตกโจทย์ให้เข้าใจ หาคีย์เวิร์ดสำคัญ
-2. **ชวนดูตัวเลือก**: ให้ดูแต่ละข้อแล้วเปรียบเทียบ ตัดทิ้งที่เป็นไปไม่ได้
-3. **โยนคำถามกลับ**: ถาม "นึกอะไรออกบ้าง?" "ข้อไหนดูแปลกๆ?" 
-4. **ให้กำลังใจ**: "เก่งมาก!", "คิดได้ดีแล้ว!", "ลองใหม่ดู!"
+1. **อธิบายโจทย์**: แตกโจทย์ให้เข้าใจ หาคำสำคัญ
+2. **ดูตัวเลือก**: เปรียบเทียบ ตัดตัวเลือกที่ไม่เกี่ยว
+3. **โยนคำถามกลับ**: เช่น "นึกอะไรออกบ้าง?" "ข้อไหนตัดทิ้งได้?"
+4. **ให้กำลังใจสั้นๆ**: เช่น "เก่งมาก!" "คิดดีแล้ว!" "ใกล้แล้ว!"
 
-พูดเหมือนพี่ๆ ใช้ "เรา" แทน "คุณ" ไม่เป็นทางการ ไม่ใช้ "หัวอกนะลูก" ตอบสั้นๆ แต่กระชับ`,
+ใช้ภาษาพี่ๆ เป็นกันเอง ใช้คำว่า "เรา" แทน "คุณ" ไม่ต้องสุภาพเกิน  
+ไม่พูดแบบโลกสวย ไม่ยัดเยียดความหวังดี  
+คำตอบต้องสั้น กระชับ มีจังหวะให้เด็กคิดเอง`,
                 question,
                 choices,
                 userMessage: currentInput,
@@ -147,20 +239,37 @@ export default function ChatBot({
             setIsLoading(false);
           }
         }}
-        className="flex gap-2"
+        className="flex gap-3"
       >
         <input
-          className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 rounded-xl px-4 py-3 text-sm transition-all duration-200 focus:scale-[1.02] focus:outline-none focus:ring-2 focus:ring-blue-500"
           placeholder="เช่น: ข้อนี้ถามอะไร? ตัวเลือกไหนน่าจะใช่?"
           value={chatInput}
           onChange={(e) => setChatInput(e.target.value)}
+          style={{
+            backgroundColor: theme.textColor + '08',
+            borderColor: theme.textColor + '20',
+            color: theme.textColor,
+            border: `1px solid ${theme.textColor}20`
+          }}
         />
         <button
           type="submit"
           disabled={!chatInput.trim() || isLoading}
-          className="bg-blue-600 text-white px-3 py-1.5 text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="px-6 py-3 text-sm rounded-xl font-medium transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:scale-100 shadow-lg"
+          style={{
+            backgroundColor: '#3b82f6',
+            color: '#ffffff'
+          }}
         >
-          {isLoading ? "⏳" : "ส่ง"}
+          {isLoading ? (
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span>⏳</span>
+            </div>
+          ) : (
+            <span>ส่ง 📤</span>
+          )}
         </button>
       </form>
     </div>
