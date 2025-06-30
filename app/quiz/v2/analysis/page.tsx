@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, User } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
@@ -26,8 +26,8 @@ interface QuizV2Answer {
 export default function QuizV2AnalysisPage() {
   const [answers, setAnswers] = useState<QuizV2Answer[]>([])
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<any>(null)
-  const { theme, isLoading } = useUserTheme()
+  const [user, setUser] = useState<User | null>(null)
+  const { theme } = useUserTheme()
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -303,7 +303,7 @@ export default function QuizV2AnalysisPage() {
             📉 จุดอ่อนแต่ละวิชา
           </h2>
           <div className="space-y-4">
-            {subjectAnalysis.map((subject, index) => (
+            {subjectAnalysis.map((subject) => (
               <div 
                 key={subject.subject}
                 className="border rounded-lg p-4"
@@ -437,15 +437,15 @@ export default function QuizV2AnalysisPage() {
             📊 ประวัติการทำข้อสอบล่าสุด
           </h2>
           <div className="space-y-3">
-            {overallStats.sessionStats.map((session, index) => (
+            {overallStats.sessionStats.map((session, sessionIndex) => (
               <div 
-                key={index}
+                key={sessionIndex}
                 className="flex items-center justify-between p-3 rounded-lg"
                 style={{ backgroundColor: theme.textColor + '05' }}
               >
                 <div>
                   <span style={{ color: theme.textColor }}>
-                    ครั้งที่ {overallStats.sessionStats.length - index}
+                    ครั้งที่ {overallStats.sessionStats.length - sessionIndex}
                   </span>
                   <span 
                     className="ml-3 text-sm"
