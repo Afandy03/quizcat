@@ -2,7 +2,7 @@
 import { ReactNode, useEffect, useState } from "react"
 import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme"
 import { usePathname, useRouter } from "next/navigation"
-import MainMenu from "@/components/MainMenu"
+import PageTransition from "@/components/PageTransition"
 
 interface ThemedLayoutProps {
   children: ReactNode
@@ -92,9 +92,6 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
       style={containerStyles}
       suppressHydrationWarning
     >
-      {/* ✅ เมนูด้านซ้าย */}
-      <MainMenu />
-
       {/* ✅ ปุ่มกลับหน้า dashboard */}
       {showBack && (
         <button
@@ -108,7 +105,9 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
       )}
 
       {/* ✅ เว้นซ้ายไม่ให้ชนเมนู */}
-      <main className="p-4 ml-52">{children}</main>
+      <PageTransition>
+        <main className="p-4 ml-52">{children}</main>
+      </PageTransition>
     </div>
   )
 }
