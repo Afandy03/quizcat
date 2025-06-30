@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { auth, db } from "../../lib/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc } from "firebase/firestore";
+import { isTestUser, setTestMode, TEST_USER_EMAIL, TEST_USER_PASSWORD } from "../../lib/testUser";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -93,10 +94,20 @@ export default function LoginPage() {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       saveLogin();
+      
+      // ตรวจสอบและตั้งค่า test mode
+      if (isTestUser(email)) {
+        setTestMode(true);
+        showMessage("🤖 Test User Login สำเร็จ (AI/Automation Mode)", "success");
+      } else {
+        setTestMode(false);
+        showMessage("🎯 เข้าสู่ระบบสำเร็จ!", "success");
+      }
+      
       // ลบ guest session เมื่อ login สำเร็จ
       localStorage.removeItem('quizcat-guest-id');
       localStorage.removeItem('quizcat-guest-mode');
-      showMessage("🎯 เข้าสู่ระบบสำเร็จ!", "success");
+      
       setTimeout(() => router.push("/dashboard"), 1500);
     } catch (err: any) {
       showMessage("❌ เข้าสู่ระบบไม่สำเร็จ: " + err.message, "error");
@@ -119,6 +130,45 @@ export default function LoginPage() {
       showMessage("❌ เกิดข้อผิดพลาด: " + err.message, "error");
     } finally {
       setGuestLoading(false);
+    }
+  };
+
+  // Quick test login สำหรับ AI/automation
+  const handleTestLogin = async () => {
+    setEmail(TEST_USER_EMAIL);
+    setPassword(TEST_USER_PASSWORD);
+    
+    setLoading(true);
+    try {
+      await signInWithEmailAndPassword(auth, TEST_USER_EMAIL, TEST_USER_PASSWORD);
+      setTestMode(true);
+      showMessage("🤖 Test User Login สำเร็จ (AI/Automation)", "success");
+      
+      // ลบ guest session
+      localStorage.removeItem('quizcat-guest-id');
+      localStorage.removeItem('quizcat-guest-mode');
+      
+      setTimeout(() => router.push("/dashboard"), 1500);
+    } catch (err: any) {
+      // ถ้า login ไม่ได้ ลองสร้าง account ใหม่
+      try {
+        await createUserWithEmailAndPassword(auth, TEST_USER_EMAIL, TEST_USER_PASSWORD);
+        await setDoc(doc(db, "users", auth.currentUser!.uid), {
+          email: TEST_USER_EMAIL,
+          displayName: "AI Test User",
+          points: 1000,
+          theme: { bgColor: "#3b82f6", textColor: "#ffffff" },
+          createdAt: new Date(),
+          isTestUser: true
+        });
+        setTestMode(true);
+        showMessage("🤖 Test User สร้างและ Login สำเร็จ", "success");
+        setTimeout(() => router.push("/dashboard"), 1500);
+      } catch (createErr: any) {
+        showMessage("❌ สร้าง Test User ไม่สำเร็จ: " + createErr.message, "error");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -242,6 +292,17 @@ export default function LoginPage() {
             >
               {guestLoading ? "⏳ กำลังเข้าสู่ระบบ..." : "🎭 เข้าใช้แบบผู้เยี่ยมชม"}
             </button>
+
+            {/* Test Login for AI/Automation */}
+            {process.env.NODE_ENV === 'development' && (
+              <button 
+                onClick={handleTestLogin} 
+                disabled={loading || guestLoading}
+                className="w-full bg-gradient-to-r from-purple-500 to-purple-600 text-white py-2 px-4 rounded-lg font-medium text-sm shadow-lg hover:from-purple-600 hover:to-purple-700 transform hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+              >
+                {loading ? "⏳ กำลังเข้าสู่ระบบ..." : "🤖 Test Login (AI/Automation)"}
+              </button>
+            )}
           </div>
 
           <div className="text-center pt-4">

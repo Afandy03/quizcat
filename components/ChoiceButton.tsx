@@ -1,4 +1,5 @@
 import { MouseEventHandler } from "react";
+import { getBackgroundStyle } from "@/lib/useTheme";
 
 type Props = {
   choice: string;
@@ -25,7 +26,7 @@ export default function ChoiceButton({
   const isCorrect = correctIndex === index;
 
   let buttonStyle = {
-    backgroundColor: theme.bgColor,
+    ...getBackgroundStyle(theme.bgColor),
     color: theme.textColor,
     border: `1px solid ${theme.textColor}`,
   };

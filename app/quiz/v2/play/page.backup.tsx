@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
+import { useUserTheme } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 import ChatBot from '@/components/ChatBot'
 
@@ -304,7 +304,7 @@ export default function QuizV2PlayPage() {
           {/* By Subject Analysis */}
           <div 
             className="rounded-lg p-6"
-            style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+            style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
           >
             <h3 className="text-xl font-bold mb-4" style={{ color: theme.textColor }}>
               📊 วิเคราะห์ตามวิชา
@@ -351,7 +351,7 @@ export default function QuizV2PlayPage() {
           {/* Confidence Analysis */}
           <div 
             className="rounded-lg p-6"
-            style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+            style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
           >
             <h3 className="text-xl font-bold mb-4" style={{ color: theme.textColor }}>
               🧠 วิเคราะห์ความมั่นใจ
@@ -465,7 +465,7 @@ export default function QuizV2PlayPage() {
         {/* Question */}
         <div 
           className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <div className="flex justify-between items-start mb-4">
             <div style={{ color: theme.textColor + '70' }} className="text-sm">
@@ -517,7 +517,7 @@ export default function QuizV2PlayPage() {
         {/* Confidence Selector */}
         <div 
           className="rounded-lg p-4"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <h3 className="font-medium mb-3" style={{ color: theme.textColor }}>
             🧠 ระดับความมั่นใจในการตอบ:

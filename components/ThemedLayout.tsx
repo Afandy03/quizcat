@@ -1,6 +1,6 @@
 "use client"
 import { ReactNode } from "react"
-import { useUserTheme } from "@/lib/useTheme"
+import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme"
 import { usePathname, useRouter } from "next/navigation"
 import MainMenu from "@/components/MainMenu"
 
@@ -20,7 +20,7 @@ export default function ThemedLayout({ children }: ThemedLayoutProps) {
   return (
     <div
       style={{
-        backgroundColor: theme.bgColor,
+        ...getBackgroundStyle(theme.bgColor),
         color: theme.textColor,
         minHeight: "100vh",
         transition: "all .2s ease",

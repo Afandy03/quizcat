@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { collection, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
-import { useUserTheme } from '@/lib/useTheme'
+import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 
 interface Question {
@@ -27,6 +27,7 @@ export default function QuizV2SelectPage() {
   const [selectedSubject, setSelectedSubject] = useState('')
   const [selectedTopic, setSelectedTopic] = useState('')
   const [selectedGrade, setSelectedGrade] = useState('')
+  const [questionCount, setQuestionCount] = useState(10)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -74,11 +75,6 @@ export default function QuizV2SelectPage() {
   }, [selectedSubject, allQuestions])
 
   const getAvailableQuestions = () => {
-    // ✅ ถ้าไม่ได้เลือกเงื่อนไขใดๆ เลย ให้คืนค่า array ว่าง
-    if (!selectedSubject && !selectedTopic && !selectedGrade) {
-      return []
-    }
-
     let filtered = allQuestions
 
     if (selectedSubject) {
@@ -97,12 +93,9 @@ export default function QuizV2SelectPage() {
   const handleStartQuiz = () => {
     const questions = getAvailableQuestions()
     if (questions.length === 0) {
-      alert('กรุณาเลือกวิชา หรือหมวด หรือระดับชั้น เพื่อค้นหาข้อสอบ')
+      alert('ไม่พบข้อสอบที่ตรงกับเงื่อนไขที่เลือก')
       return
     }
-
-    // ✅ ใช้จำนวนข้อสอบคงที่ 10 ข้อ หรือจำนวนที่มีทั้งหมด (ถ้าน้อยกว่า 10)
-    const questionCount = Math.min(questions.length, 10)
 
     // สร้าง URL parameters
     const params = new URLSearchParams()
@@ -134,7 +127,9 @@ export default function QuizV2SelectPage() {
     )
   }
 
-  const availableQuestions = getAvailableQuestions()
+  const hasFilter = selectedSubject || selectedTopic || selectedGrade
+  const filteredQuestions = hasFilter ? getAvailableQuestions() : []
+  const maxQuestions = Math.min(filteredQuestions.length, 50)
 
   return (
     <ThemedLayout>
@@ -166,7 +161,7 @@ export default function QuizV2SelectPage() {
         <div 
           className="rounded-2xl shadow-lg border p-6 space-y-6"
           style={{
-            backgroundColor: theme.bgColor,
+            ...getBackgroundStyle(theme.bgColor),
             borderColor: theme.textColor + '20'
           }}
         >
@@ -208,7 +203,7 @@ export default function QuizV2SelectPage() {
             <select
               className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               style={{
-                backgroundColor: theme.bgColor,
+                ...getBackgroundStyle(theme.bgColor),
                 color: theme.textColor,
                 borderColor: theme.textColor + '40'
               }}
@@ -237,7 +232,7 @@ export default function QuizV2SelectPage() {
             <select
               className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 disabled:opacity-50"
               style={{
-                backgroundColor: theme.bgColor,
+                ...getBackgroundStyle(theme.bgColor),
                 color: theme.textColor,
                 borderColor: theme.textColor + '40'
               }}
@@ -263,7 +258,7 @@ export default function QuizV2SelectPage() {
             <select
               className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
               style={{
-                backgroundColor: theme.bgColor,
+                ...getBackgroundStyle(theme.bgColor),
                 color: theme.textColor,
                 borderColor: theme.textColor + '40'
               }}
@@ -277,60 +272,115 @@ export default function QuizV2SelectPage() {
             </select>
           </div>
 
-          {/* Question Count Display */}
-          <div 
-            className="border rounded-lg p-4 text-center"
-            style={{
-              borderColor: theme.textColor + '20',
-              backgroundColor: theme.textColor + '05'
-            }}
-          >
-            <div 
-              className="text-2xl font-bold mb-2"
+          {/* Question Count */}
+          <div>
+            <label 
+              className="block text-sm font-medium mb-2"
               style={{ color: theme.textColor }}
             >
-              📋 {availableQuestions.length > 0 ? availableQuestions.length : '--'} ข้อ
-            </div>
-            <p 
-              className="text-sm"
-              style={{ color: theme.textColor + '80' }}
+              📝 จำนวนข้อสอบ:
+            </label>
+            <input
+              type="range"
+              min="1"
+              max={maxQuestions}
+              value={questionCount}
+              onChange={(e) => setQuestionCount(parseInt(e.target.value))}
+              disabled={!hasFilter}
+              className="w-full disabled:opacity-50"
+              style={{
+                ...getBackgroundStyle(theme.bgColor),
+              }}
+            />
+            <div 
+              className="flex justify-between text-sm mt-1"
+              style={{ color: theme.textColor + (hasFilter ? '80' : '50') }}
             >
-              {availableQuestions.length > 0 ? 'ข้อสอบที่พบตามเงื่อนไข' : 'กรุณาเลือกเงื่อนไขการค้นหา'}
-            </p>
-            {availableQuestions.length > 0 && (
+              <span>1 ข้อ</span>
+              <span 
+                className="font-bold"
+                style={{ color: theme.textColor + (hasFilter ? '' : '50') }}
+              >
+                {hasFilter ? questionCount : 0} ข้อ
+              </span>
+              <span>{hasFilter ? maxQuestions : 0} ข้อ (สูงสุด)</span>
+            </div>
+          </div>
+
+          {/* Question Count Display */}
+          {hasFilter ? (
+            <div 
+              className="border rounded-lg p-4 text-center"
+              style={{
+                borderColor: theme.textColor + '20',
+                backgroundColor: theme.textColor + '05'
+              }}
+            >
               <div 
-                className="mt-2 text-xs grid grid-cols-3 gap-2"
+                className="text-2xl font-bold mb-2"
+                style={{ color: theme.textColor }}
+              >
+                📋 {filteredQuestions.length} ข้อ
+              </div>
+              <p 
+                className="text-sm"
+                style={{ color: theme.textColor + '80' }}
+              >
+                ข้อสอบที่พบตามเงื่อนไข
+              </p>
+              {filteredQuestions.length > 0 && (
+                <div 
+                  className="mt-2 text-xs grid grid-cols-3 gap-2"
+                  style={{ color: theme.textColor + '70' }}
+                >
+                  <div>
+                    <div className="font-semibold">📗 ง่าย</div>
+                    <div>{filteredQuestions.filter(q => q.difficulty === 'easy').length} ข้อ</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold">📘 ปานกลาง</div>
+                    <div>{filteredQuestions.filter(q => q.difficulty === 'medium').length} ข้อ</div>
+                  </div>
+                  <div>
+                    <div className="font-semibold">📕 ยาก</div>
+                    <div>{filteredQuestions.filter(q => q.difficulty === 'hard').length} ข้อ</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div 
+              className="border rounded-lg p-6 text-center"
+              style={{
+                borderColor: theme.textColor + '20',
+                backgroundColor: theme.textColor + '05'
+              }}
+            >
+              <div className="text-4xl mb-3">🔍</div>
+              <p 
+                className="text-sm"
                 style={{ color: theme.textColor + '70' }}
               >
-                <div>
-                  <div className="font-semibold">📗 ง่าย</div>
-                  <div>{availableQuestions.filter(q => q.difficulty === 'easy').length} ข้อ</div>
-                </div>
-                <div>
-                  <div className="font-semibold">📘 ปานกลาง</div>
-                  <div>{availableQuestions.filter(q => q.difficulty === 'medium').length} ข้อ</div>
-                </div>
-                <div>
-                  <div className="font-semibold">📕 ยาก</div>
-                  <div>{availableQuestions.filter(q => q.difficulty === 'hard').length} ข้อ</div>
-                </div>
-              </div>
-            )}
-          </div>
+                กรุณาเลือกวิชา หมวด หรือระดับชั้นก่อน
+              </p>
+            </div>
+          )}
 
           {/* Start Button */}
           <button
             onClick={handleStartQuiz}
-            disabled={availableQuestions.length === 0}
+            disabled={!hasFilter || filteredQuestions.length === 0}
             className="w-full py-4 px-6 rounded-xl font-bold text-xl shadow-lg hover:opacity-90 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              background: availableQuestions.length > 0 
+              background: hasFilter && filteredQuestions.length > 0
                 ? 'linear-gradient(45deg, #10b981, #059669)' 
                 : theme.textColor + '40',
               color: '#ffffff',
-              transform: availableQuestions.length > 0 ? 'scale(1)' : 'scale(0.98)'
-            }}            >
-            {availableQuestions.length > 0 ? '🚀 เริ่มทำข้อสอบ V2' : '🔍 กรุณาเลือกเงื่อนไข'}
+              transform: hasFilter && filteredQuestions.length > 0 ? 'scale(1)' : 'scale(0.98)'
+            }}
+          >
+            {!hasFilter ? '🔍 เลือกเงื่อนไขก่อน' :
+             filteredQuestions.length > 0 ? '🚀 เริ่มทำข้อสอบ V2' : '❌ ไม่พบข้อสอบ'}
           </button>
         </div>
 

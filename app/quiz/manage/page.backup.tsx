@@ -2,11 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, doc, deleteDoc, updateDoc } from "firebase/firestore";
+import { collection, getDocs, doc, deleteDoc, updateDoc, addDoc, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { db, auth } from "@/lib/firebase";
 import ThemedLayout from "@/components/ThemedLayout";
 import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme";
+import Papa from "papaparse";
+import { AnimatePresence, motion } from "framer-motion";
 
 interface Question {
   id?: string;
@@ -28,6 +30,7 @@ export default function QuizManagePage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSubject, setFilterSubject] = useState("");
   const [filterTopic, setFilterTopic] = useState("");
@@ -35,8 +38,11 @@ export default function QuizManagePage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [createMode, setCreateMode] = useState<"manual" | "csv">("manual");
+  const [csvText, setCsvText] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
 
-  // Form states for editing only
+  // Form states
   const [formData, setFormData] = useState<Question>({
     question: "",
     choices: ["", "", "", ""],
@@ -48,10 +54,11 @@ export default function QuizManagePage() {
     explanation: ""
   });
 
-  // Handle ESC key to close edit modal
+  // Handle ESC key to close modal
   useEffect(() => {
     const handleEscKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && editingQuestion) {
+      if (event.key === 'Escape' && isCreating) {
+        setIsCreating(false);
         setEditingQuestion(null);
         resetForm();
       }
@@ -59,7 +66,7 @@ export default function QuizManagePage() {
 
     document.addEventListener('keydown', handleEscKey);
     return () => document.removeEventListener('keydown', handleEscKey);
-  }, [editingQuestion]);
+  }, [isCreating]);
 
   useEffect(() => {
     // ตรวจสอบ guest mode - ไม่อนุญาตให้ guest จัดการข้อสอบ
@@ -135,9 +142,17 @@ export default function QuizManagePage() {
         // Update existing question
         await updateDoc(doc(db, "questions", editingQuestion.id), questionData);
         alert("✅ แก้ไขข้อสอบสำเร็จ!");
+      } else {
+        // Create new question
+        await addDoc(collection(db, "questions"), {
+          ...questionData,
+          createdAt: new Date()
+        });
+        alert("✅ เพิ่มข้อสอบสำเร็จ!");
       }
 
       setEditingQuestion(null);
+      setIsCreating(false);
       resetForm();
       fetchQuestions();
     } catch (error) {
@@ -164,6 +179,7 @@ export default function QuizManagePage() {
   const handleEdit = (question: Question) => {
     setFormData(question);
     setEditingQuestion(question);
+    setIsCreating(true);
   };
 
   const resetForm = () => {
@@ -177,6 +193,68 @@ export default function QuizManagePage() {
       difficulty: 'medium',
       explanation: ""
     });
+    setCsvText("");
+    setCsvFile(null);
+    setCreateMode("manual");
+  };
+
+  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setCsvText(reader.result as string);
+    reader.readAsText(file);
+  };
+
+  const handleCsvImport = async () => {
+    if (!csvText || !formData.subject.trim() || !formData.topic.trim()) {
+      alert("❌ กรุณากรอกวิชา และหัวข้อก่อน import CSV");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          const data = results.data as any[];
+          let successCount = 0;
+
+          for (const row of data) {
+            if (!row.question || !row.choice1 || !row.correctIndex) continue;
+
+            try {
+              await addDoc(collection(db, "questions"), {
+                question: row.question,
+                choices: [row.choice1, row.choice2 || "", row.choice3 || "", row.choice4 || ""],
+                correctIndex: Number(row.correctIndex) - 1,
+                subject: formData.subject,
+                topic: formData.topic,
+                grade: formData.grade,
+                difficulty: formData.difficulty,
+                explanation: row.explanation || "",
+                createdAt: serverTimestamp(),
+              });
+              successCount++;
+            } catch (error) {
+              console.error("Error adding question:", error);
+            }
+          }
+
+          alert(`🚀 นำเข้าสำเร็จ ${successCount} ข้อสอบ!`);
+          setIsCreating(false);
+          resetForm();
+          fetchQuestions();
+        },
+      });
+    } catch (error) {
+      console.error("Error importing CSV:", error);
+      alert("❌ เกิดข้อผิดพลาดในการนำเข้า CSV");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredQuestions = questions.filter(q => {
@@ -212,7 +290,11 @@ export default function QuizManagePage() {
               <p style={{ color: theme.textColor + '80' }}>จัดการข้อสอบทั้งหมดในระบบ</p>
             </div>
             <button
-              onClick={() => router.push("/quiz/manage/addquestion")}
+              onClick={() => {
+                resetForm();
+                setIsCreating(true);
+                setEditingQuestion(null);
+              }}
               className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-xl font-medium shadow-lg hover:from-green-600 hover:to-green-700 transform hover:scale-[1.02] transition-all duration-200"
             >
               ➕ เพิ่มข้อสอบใหม่
@@ -320,16 +402,52 @@ export default function QuizManagePage() {
           </div>
         </div>
 
-        {/* Edit Form Modal */}
-        {editingQuestion && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
-            <div
-              className="mt-10 rounded-2xl p-6 w-full max-w-3xl"
-              style={{ ...getBackgroundStyle(theme.bgColor) }}
-            >
+        {/* Create/Edit Form Modal */}
+        <AnimatePresence>
+          {isCreating && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+              <motion.div
+                key={createMode}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25 }}
+                layout // ✅ ช่วยให้ modal ปรับขนาดแบบเนียน
+                className="mt-10 rounded-2xl p-6 w-full max-w-3xl"
+                style={{
+                  ...getBackgroundStyle(theme.bgColor),
+                  minHeight: "500px", // ✅ กัน modal เตี้ยหดตอน CSV
+                }}
+              >
               <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
-                📝 แก้ไขข้อสอบ
+                {editingQuestion ? "📝 แก้ไขข้อสอบ" : "➕ เพิ่มข้อสอบใหม่"}
               </h2>
+
+              {/* Mode Toggle - Only show when creating new */}
+              {!editingQuestion && (
+                <div className="flex justify-center gap-4 mb-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="manual"
+                      checked={createMode === "manual"}
+                      onChange={() => setCreateMode("manual")}
+                      className="text-blue-500"
+                    />
+                    <span style={{ color: theme.textColor }}>✍️ พิมพ์เองทีละข้อ</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      value="csv"
+                      checked={createMode === "csv"}
+                      onChange={() => setCreateMode("csv")}
+                      className="text-blue-500"
+                    />
+                    <span style={{ color: theme.textColor }}>📥 นำเข้า CSV</span>
+                  </label>
+                </div>
+              )}
               
               <div className="space-y-4">
                 {/* Common fields: Subject, Topic, Grade, Difficulty */}
@@ -361,7 +479,7 @@ export default function QuizManagePage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>📖 หัวข้อ</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>� หัวข้อ</label>
                     <select
                       value={formData.topic}
                       onChange={(e) => {
@@ -425,86 +543,146 @@ export default function QuizManagePage() {
                   </div>
                 </div>
 
-                {/* Question */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>❓ คำถาม</label>
-                  <textarea
-                    value={formData.question}
-                    onChange={(e) => setFormData({...formData, question: e.target.value})}
-                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    style={{ 
-                      ...getBackgroundStyle(theme.bgColor),
-                      color: theme.textColor,
-                      borderColor: theme.textColor + '30'
-                    }}
-                    rows={3}
-                    placeholder="กรอกคำถาม..."
-                  />
-                </div>
-
-                {/* Choices */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>📝 ตัวเลือก</label>
-                  {formData.choices.map((choice, index) => (
-                    <div key={index} className="flex items-center gap-3 mb-2">
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          name="correctAnswer"
-                          checked={formData.correctIndex === index}
-                          onChange={() => setFormData({...formData, correctIndex: index})}
-                          className="mr-2"
-                        />
-                        <span className="text-sm font-medium" style={{ color: theme.textColor }}>{String.fromCharCode(65 + index)}.</span>
-                      </div>
-                      <input
-                        type="text"
-                        value={choice}
-                        onChange={(e) => {
-                          const newChoices = [...formData.choices];
-                          newChoices[index] = e.target.value;
-                          setFormData({...formData, choices: newChoices});
-                        }}
-                        className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                {/* Manual Mode Fields */}
+                {(editingQuestion || createMode === "manual") && (
+                  <>
+                    {/* Question */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>❓ คำถาม</label>
+                      <textarea
+                        value={formData.question}
+                        onChange={(e) => setFormData({...formData, question: e.target.value})}
+                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         style={{ 
                           ...getBackgroundStyle(theme.bgColor),
                           color: theme.textColor,
                           borderColor: theme.textColor + '30'
                         }}
-                        placeholder={`ตัวเลือก ${String.fromCharCode(65 + index)}`}
+                        rows={3}
+                        placeholder="กรอกคำถาม..."
                       />
                     </div>
-                  ))}
-                </div>
 
-                {/* Explanation */}
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>💡 คำอธิบาย (ไม่บังคับ)</label>
-                  <textarea
-                    value={formData.explanation || ""}
-                    onChange={(e) => setFormData({...formData, explanation: e.target.value})}
-                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    style={{ 
-                      ...getBackgroundStyle(theme.bgColor),
-                      color: theme.textColor,
-                      borderColor: theme.textColor + '30'
-                    }}
-                    rows={3}
-                    placeholder="อธิบายเหตุผลของคำตอบที่ถูก..."
-                  />
-                </div>
+                    {/* Choices */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>📝 ตัวเลือก</label>
+                      {formData.choices.map((choice, index) => (
+                        <div key={index} className="flex items-center gap-3 mb-2">
+                          <div className="flex items-center">
+                            <input
+                              type="radio"
+                              name="correctAnswer"
+                              checked={formData.correctIndex === index}
+                              onChange={() => setFormData({...formData, correctIndex: index})}
+                              className="mr-2"
+                            />
+                            <span className="text-sm font-medium" style={{ color: theme.textColor }}>{String.fromCharCode(65 + index)}.</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={choice}
+                            onChange={(e) => {
+                              const newChoices = [...formData.choices];
+                              newChoices[index] = e.target.value;
+                              setFormData({...formData, choices: newChoices});
+                            }}
+                            className="flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            style={{ 
+                              ...getBackgroundStyle(theme.bgColor),
+                              color: theme.textColor,
+                              borderColor: theme.textColor + '30'
+                            }}
+                            placeholder={`ตัวเลือก ${String.fromCharCode(65 + index)}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Explanation */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>💡 คำอธิบาย (ไม่บังคับ)</label>
+                      <textarea
+                        value={formData.explanation || ""}
+                        onChange={(e) => setFormData({...formData, explanation: e.target.value})}
+                        className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ 
+                          ...getBackgroundStyle(theme.bgColor),
+                          color: theme.textColor,
+                          borderColor: theme.textColor + '30'
+                        }}
+                        rows={3}
+                        placeholder="อธิบายเหตุผลของคำตอบที่ถูก..."
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* CSV Mode Fields */}
+                {!editingQuestion && createMode === "csv" && (
+                  <div className="space-y-4">
+                    <div 
+                      className="p-4 rounded-lg border-2 border-dashed"
+                      style={{ borderColor: theme.textColor + '30' }}
+                    >
+                      <h3 className="font-medium mb-2" style={{ color: theme.textColor }}>� รูปแบบไฟล์ CSV</h3>
+                      <p className="text-sm mb-2" style={{ color: theme.textColor + '80' }}>
+                        ไฟล์ CSV ต้องมีคอลัมน์: question, choice1, choice2, choice3, choice4, correctIndex, explanation
+                      </p>
+                      <p className="text-xs" style={{ color: theme.textColor + '60' }}>
+                        correctIndex: 1=choice1, 2=choice2, 3=choice3, 4=choice4
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>� เลือกไฟล์ CSV</label>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        onChange={handleCsvUpload}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ 
+                          ...getBackgroundStyle(theme.bgColor),
+                          color: theme.textColor,
+                          borderColor: theme.textColor + '30'
+                        }}
+                      />
+                    </div>
+
+                    {csvFile && (
+                      <div 
+                        className="p-3 rounded-lg"
+                        style={{ backgroundColor: theme.textColor + '10' }}
+                      >
+                        <p className="text-sm" style={{ color: theme.textColor }}>
+                          📄 ไฟล์: {csvFile.name} ({(csvFile.size / 1024).toFixed(1)} KB)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-xl font-medium shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "⏳ กำลังบันทึก..." : "💾 บันทึก"}
-                </button>
+                {editingQuestion || createMode === "manual" ? (
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white py-3 px-6 rounded-xl font-medium shadow-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? "⏳ กำลังบันทึก..." : "💾 บันทึก"}
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCsvImport}
+                    disabled={saving || !csvText}
+                    className="flex-1 bg-gradient-to-r from-green-500 to-green-600 text-white py-3 px-6 rounded-xl font-medium shadow-lg hover:from-green-600 hover:to-green-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? "⏳ กำลังนำเข้า..." : "📤 นำเข้า CSV"}
+                  </button>
+                )}
                 <button
                   onClick={() => {
+                    setIsCreating(false);
                     setEditingQuestion(null);
                     resetForm();
                   }}
@@ -514,9 +692,10 @@ export default function QuizManagePage() {
                   ❌ ยกเลิก
                 </button>
               </div>
-            </div>
+            </motion.div>
           </div>
         )}
+        </AnimatePresence>
 
         {/* Questions List */}
         <div className="grid gap-4">

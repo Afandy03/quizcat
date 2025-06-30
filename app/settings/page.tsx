@@ -5,6 +5,7 @@ import { auth, db } from '@/lib/firebase'
 import { doc, updateDoc } from 'firebase/firestore'
 import { useUserTheme, saveGuestTheme } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function SettingsPage() {
   const currentTheme = useUserTheme()
@@ -15,14 +16,16 @@ export default function SettingsPage() {
 
   // Preset themes
   const presetThemes = [
-    { name: "เริ่มต้น", bg: "#ffffff", text: "#000000" },
-    { name: "โหมดมืด", bg: "#1f2937", text: "#f9fafb" },
-    { name: "น้ำเงิน", bg: "#3b82f6", text: "#ffffff" },
-    { name: "เขียว", bg: "#10b981", text: "#ffffff" },
-    { name: "ม่วง", bg: "#8b5cf6", text: "#ffffff" },
-    { name: "ชมพู", bg: "#ec4899", text: "#ffffff" },
-    { name: "ส้ม", bg: "#f97316", text: "#ffffff" },
-    { name: "แดง", bg: "#ef4444", text: "#ffffff" },
+    { name: "เริ่มต้น", bg: "#ffffff", text: "#000000", emoji: "⚪" },
+    { name: "โหมดมืด", bg: "#1f2937", text: "#f9fafb", emoji: "🌙" },
+    { name: "น้ำเงิน", bg: "#3b82f6", text: "#ffffff", emoji: "💙" },
+    { name: "เขียว", bg: "#10b981", text: "#ffffff", emoji: "💚" },
+    { name: "ม่วง", bg: "#8b5cf6", text: "#ffffff", emoji: "💜" },
+    { name: "ชมพู", bg: "#ec4899", text: "#ffffff", emoji: "💗" },
+    { name: "ส้ม", bg: "#f97316", text: "#ffffff", emoji: "🧡" },
+    { name: "แดง", bg: "#ef4444", text: "#ffffff", emoji: "❤️" },
+    { name: "🌸 ซากุระ", bg: "radial-gradient(circle at 20% 80%, #fce7f3 0%, #fef7f0 50%, transparent 70%), radial-gradient(circle at 80% 20%, #fef3c7 0%, #fef7f0 50%, transparent 70%)", text: "#8b4513", emoji: "🌸" },
+    { name: "🍃 วินเทจ", bg: "linear-gradient(135deg, #f9f7ff 0%, #f0f4f8 30%, #fff8e1 70%, #f5f1e8 100%)", text: "#5d4e37", emoji: "📜" },
   ]
 
   useEffect(() => {
@@ -42,7 +45,13 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     // อัปเดต CSS variables ทันทีก่อนบันทึก
-    document.documentElement.style.setProperty('--background', bgColor)
+    if (bgColor.includes('gradient')) {
+      document.documentElement.style.setProperty('--background', 'transparent')
+      document.body.style.background = bgColor
+    } else {
+      document.documentElement.style.setProperty('--background', bgColor)
+      document.body.style.background = ''
+    }
     document.documentElement.style.setProperty('--foreground', textColor)
 
     if (isGuest) {
@@ -86,6 +95,7 @@ export default function SettingsPage() {
       
       document.documentElement.style.setProperty('--background', defaultBg)
       document.documentElement.style.setProperty('--foreground', defaultText)
+      document.body.style.background = ''
 
       alert('🎭 รีเซ็ตธีมผู้เยี่ยมชมเป็นค่าเริ่มต้นเรียบร้อย!')
       location.reload()
@@ -107,6 +117,7 @@ export default function SettingsPage() {
       // 2. อัปเดต CSS variables ทันทีเพื่อให้เห็นผลก่อน reload
       document.documentElement.style.setProperty('--background', defaultBg)
       document.documentElement.style.setProperty('--foreground', defaultText)
+      document.body.style.background = ''
 
       alert('รีเซ็ตธีมกลับเป็นค่าเริ่มต้นเรียบร้อย!')
       
@@ -122,220 +133,383 @@ export default function SettingsPage() {
 
   return (
     <ThemedLayout>
-      <main className="p-6 max-w-lg mx-auto space-y-6">
-        <h2 
-          className="text-3xl font-bold text-center mb-4"
-          style={{ color: currentTheme.textColor }}
+      <div className="min-h-screen p-6">
+        <motion.div 
+          className="max-w-5xl mx-auto"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
         >
-          🎨 ตั้งค่าธีม
-        </h2>
-
-        {isGuest && (
-          <div 
-            className="border px-4 py-3 rounded-lg text-center"
-            style={{
-              backgroundColor: currentTheme.textColor + '10', // ใช้สีจาก theme
-              borderColor: currentTheme.textColor + '40',
-              color: currentTheme.textColor
-            }}
+          <motion.h2 
+            className="text-3xl font-bold text-center mb-8"
+            style={{ color: currentTheme.textColor }}
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
           >
-            🎭 โหมดผู้เยี่ยมชม - ธีมจะบันทึกในเครื่องของคุณเท่านั้น
-          </div>
-        )}
+            🎨 ตั้งค่าธีม
+          </motion.h2>
 
-        <div 
-          className="rounded-xl shadow p-6 space-y-6"
-          style={{
-            backgroundColor: currentTheme.bgColor,
-            color: currentTheme.textColor
-          }}
-        >
-          {/* Preset Themes */}
-          <div>
-            <h3 className="font-medium mb-3">🎨 ธีมสำเร็จรูป</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {presetThemes.map((preset) => (
-                <button
-                  key={preset.name}
-                  onClick={() => {
-                    setBgColor(preset.bg)
-                    setTextColor(preset.text)
-                  }}
-                  className="flex flex-col items-center p-3 rounded-lg border-2 hover:border-blue-400 transition-colors"
-                  style={{
-                    borderColor: bgColor === preset.bg && textColor === preset.text ? '#3b82f6' : currentTheme.textColor + '40',
-                    backgroundColor: currentTheme.bgColor === preset.bg && currentTheme.textColor === preset.text ? currentTheme.textColor + '10' : 'transparent'
-                  }}
+          <AnimatePresence>
+            {isGuest && (
+              <motion.div 
+                className="border px-4 py-3 rounded-lg text-center mb-6"
+                style={{
+                  backgroundColor: currentTheme.textColor + '10',
+                  borderColor: currentTheme.textColor + '40',
+                  color: currentTheme.textColor
+                }}
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.3 }}
+              >
+                🎭 โหมดผู้เยี่ยมชม - ธีมจะบันทึกในเครื่องของคุณเท่านั้น
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Left Column */}
+            <motion.div 
+              className="space-y-6"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.4 }}
+            >
+              {/* Preset Themes Section */}
+              <div 
+                className="rounded-xl shadow-lg p-6"
+                style={{
+                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  color: currentTheme.textColor,
+                  border: `1px solid ${currentTheme.textColor}20`
+                }}
+              >
+                <motion.h3 
+                  className="text-xl font-semibold mb-4"
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ delay: 0.4 }}
                 >
-                  <div 
-                    className="w-8 h-8 rounded-full mb-2"
-                    style={{ 
-                      backgroundColor: preset.bg, 
-                      border: `2px solid ${currentTheme.textColor}40`
-                    }}
-                  />
-                  <span 
-                    className="text-xs font-medium"
-                    style={{ color: currentTheme.textColor }}
+                  🎨 ธีมสำเร็จรูป
+                </motion.h3>
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+                  {presetThemes.map((preset, index) => (
+                    <motion.button
+                      key={preset.name}
+                      onClick={() => {
+                        setBgColor(preset.bg)
+                        setTextColor(preset.text)
+                      }}
+                      className="flex flex-col items-center p-3 rounded-lg border-2 hover:border-blue-400 transition-all duration-200 relative overflow-hidden"
+                      style={{
+                        borderColor: bgColor === preset.bg && textColor === preset.text ? '#3b82f6' : currentTheme.textColor + '40',
+                        backgroundColor: bgColor === preset.bg && textColor === preset.text ? currentTheme.textColor + '10' : 'transparent'
+                      }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 + index * 0.05 }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      {/* พื้นหลังพิเศษสำหรับธีมซากุระ */}
+                      {preset.name.includes('ซากุระ') && (
+                        <motion.div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            background: 'radial-gradient(circle at 20% 80%, #fce7f3 0%, transparent 50%), radial-gradient(circle at 80% 20%, #fef3c7 0%, transparent 50%)',
+                            opacity: 0.3
+                          }}
+                          animate={{
+                            opacity: [0.3, 0.6, 0.3],
+                          }}
+                          transition={{
+                            duration: 3,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        />
+                      )}
+                      
+                      {/* พื้นหลังพิเศษสำหรับธีมวินเทจ */}
+                      {preset.name.includes('วินเทจ') && (
+                        <motion.div
+                          className="absolute inset-0 pointer-events-none"
+                          style={{
+                            background: 'linear-gradient(45deg, #f9f7ff 0%, #f0f4f8 50%, #fff8e1 100%)',
+                            opacity: 0.2
+                          }}
+                          animate={{
+                            backgroundPosition: ['0% 0%', '100% 100%', '0% 0%'],
+                          }}
+                          transition={{
+                            duration: 8,
+                            repeat: Infinity,
+                            ease: "linear"
+                          }}
+                        />
+                      )}
+
+                      <motion.div 
+                        className="w-8 h-8 rounded-full mb-2 flex items-center justify-center relative"
+                        style={{ 
+                          background: preset.bg.includes('gradient') ? preset.bg : undefined,
+                          backgroundColor: !preset.bg.includes('gradient') ? preset.bg : undefined,
+                          border: `2px solid ${currentTheme.textColor}40`
+                        }}
+                        whileHover={{ rotate: 360 }}
+                        transition={{ duration: 0.5 }}
+                      >
+                        <span className="text-sm">{preset.emoji}</span>
+                        
+                        {/* ใส่เอฟเฟกต์พิเศษ */}
+                        {preset.name.includes('ซากุระ') && (
+                          <motion.div
+                            className="absolute inset-0 rounded-full"
+                            style={{
+                              background: 'conic-gradient(from 0deg, #fce7f3, #fdf2f8, #fce7f3)',
+                              opacity: 0.4
+                            }}
+                            animate={{ rotate: 360 }}
+                            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                          />
+                        )}
+                      </motion.div>
+                      
+                      <span 
+                        className="text-xs font-medium relative z-10 text-center"
+                        style={{ color: currentTheme.textColor }}
+                      >
+                        {preset.name}
+                      </span>
+                    </motion.button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Custom Colors Section */}
+              <div 
+                className="rounded-xl shadow-lg p-6"
+                style={{
+                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  color: currentTheme.textColor,
+                  border: `1px solid ${currentTheme.textColor}20`
+                }}
+              >
+                <h3 
+                  className="text-xl font-semibold mb-4"
+                  style={{ color: currentTheme.textColor }}
+                >
+                  🎯 ปรับแต่งเอง
+                </h3>
+                
+                <div className="space-y-4">
+                  <motion.div 
+                    className="flex items-center justify-between"
+                    whileHover={{ x: 5 }}
+                    transition={{ type: "spring", stiffness: 300 }}
                   >
-                    {preset.name}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
+                    <label 
+                      htmlFor="bgColor" 
+                      className="font-medium text-lg"
+                      style={{ color: currentTheme.textColor }}
+                    >
+                      สีพื้นหลัง
+                    </label>
+                    <motion.input
+                      id="bgColor"
+                      type="color"
+                      value={bgColor}
+                      onChange={(e) => setBgColor(e.target.value)}
+                      className="h-12 w-20 rounded-lg cursor-pointer"
+                      style={{ 
+                        border: `2px solid ${currentTheme.textColor}40`
+                      }}
+                      whileFocus={{ scale: 1.1 }}
+                    />
+                  </motion.div>
 
-          {/* Custom Colors */}
-          <div 
-            className="border-t pt-4"
-            style={{ borderColor: currentTheme.textColor + '30' }}
-          >
-            <h3 
-              className="font-medium mb-3"
-              style={{ color: currentTheme.textColor }}
+                  <motion.div 
+                    className="flex items-center justify-between"
+                    whileHover={{ x: 5 }}
+                    transition={{ type: "spring", stiffness: 300 }}
+                  >
+                    <label 
+                      htmlFor="textColor" 
+                      className="font-medium text-lg"
+                      style={{ color: currentTheme.textColor }}
+                    >
+                      สีตัวหนังสือ
+                    </label>
+                    <motion.input
+                      id="textColor"
+                      type="color"
+                      value={textColor}
+                      onChange={(e) => setTextColor(e.target.value)}
+                      className="h-12 w-20 rounded-lg cursor-pointer"
+                      style={{ 
+                        border: `2px solid ${currentTheme.textColor}40`
+                      }}
+                      whileFocus={{ scale: 1.1 }}
+                    />
+                  </motion.div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-3">
+                <motion.button
+                  onClick={handleSave}
+                  className="w-full text-lg px-6 py-4 rounded-xl font-semibold text-white transition-all duration-200 hover:opacity-90 shadow-lg"
+                  style={{
+                    backgroundColor: '#10b981'
+                  }}
+                  whileHover={{ scale: 1.02, y: -2 }}
+                  whileTap={{ scale: 0.98 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.8 }}
+                >
+                  ✅ บันทึกธีม
+                </motion.button>
+
+                <motion.button
+                  onClick={handleReset}
+                  className="w-full px-6 py-3 rounded-xl font-medium transition-all duration-200"
+                  style={{
+                    backgroundColor: currentTheme.textColor + '20',
+                    color: currentTheme.textColor,
+                    border: `1px solid ${currentTheme.textColor}40`
+                  }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9 }}
+                >
+                  ♻️ รีเซ็ตกลับค่าเริ่มต้น
+                </motion.button>
+              </div>
+            </motion.div>
+
+            {/* Right Column */}
+            <motion.div 
+              className="space-y-6"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.4, duration: 0.4 }}
             >
-              🎯 ปรับแต่งเอง
-            </h3>
-            
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <label 
-                  htmlFor="bgColor" 
-                  className="font-medium"
+              {/* Theme Preview */}
+              <div 
+                className="rounded-xl shadow-lg p-6"
+                style={{
+                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  color: currentTheme.textColor,
+                  border: `1px solid ${currentTheme.textColor}20`
+                }}
+              >
+                <h3 
+                  className="text-xl font-semibold mb-4"
                   style={{ color: currentTheme.textColor }}
                 >
-                  สีพื้นหลัง
-                </label>
-                <input
-                  id="bgColor"
-                  type="color"
-                  value={bgColor}
-                  onChange={(e) => setBgColor(e.target.value)}
-                  className="h-10 w-16 rounded"
-                  style={{ 
-                    border: `1px solid ${currentTheme.textColor}40`,
-                    backgroundColor: currentTheme.bgColor
+                  🔍 ตัวอย่างธีม
+                </h3>
+                
+                <motion.div
+                  className="p-6 rounded-lg text-center font-medium shadow-inner mb-4"
+                  style={{
+                    background: bgColor.includes('gradient') ? bgColor : undefined,
+                    backgroundColor: !bgColor.includes('gradient') ? bgColor : undefined,
+                    color: textColor,
+                    border: `1px solid ${textColor}30`
                   }}
-                />
+                  whileHover={{ scale: 1.02 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  ตัวอย่างข้อความในธีมใหม่
+                </motion.div>
+
+                <div className="text-sm space-y-2">
+                  <div className="flex justify-between p-2 rounded" style={{ backgroundColor: currentTheme.textColor + '10' }}>
+                    <span style={{ color: currentTheme.textColor }}>พื้นหลัง:</span>
+                    <span className="font-mono font-semibold" style={{ color: currentTheme.textColor }}>{bgColor}</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded" style={{ backgroundColor: currentTheme.textColor + '10' }}>
+                    <span style={{ color: currentTheme.textColor }}>ตัวหนังสือ:</span>
+                    <span className="font-mono font-semibold" style={{ color: currentTheme.textColor }}>{textColor}</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label 
-                  htmlFor="textColor" 
-                  className="font-medium"
+              {/* MainMenu Preview */}
+              <div 
+                className="rounded-xl shadow-lg p-6"
+                style={{
+                  background: currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  backgroundColor: !currentTheme.bgColor.includes('gradient') ? currentTheme.bgColor : undefined,
+                  color: currentTheme.textColor,
+                  border: `1px solid ${currentTheme.textColor}20`
+                }}
+              >
+                <h3 
+                  className="text-xl font-semibold mb-4"
                   style={{ color: currentTheme.textColor }}
                 >
-                  สีตัวหนังสือ
-                </label>
-                <input
-                  id="textColor"
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => setTextColor(e.target.value)}
-                  className="h-10 w-16 rounded"
+                  📱 ตัวอย่าง MainMenu
+                </h3>
+                
+                <motion.div 
+                  className="rounded-lg p-4 space-y-3 shadow-md max-w-sm"
                   style={{ 
-                    border: `1px solid ${currentTheme.textColor}40`,
-                    backgroundColor: currentTheme.bgColor
+                    background: bgColor.includes('gradient') ? bgColor : undefined,
+                    backgroundColor: !bgColor.includes('gradient') ? bgColor : undefined,
+                    border: `1px solid ${textColor}40`
                   }}
-                />
+                  whileHover={{ y: -2 }}
+                  transition={{ type: "spring", stiffness: 300 }}
+                >
+                  <motion.div 
+                    className="px-4 py-3 rounded-lg font-medium"
+                    style={{
+                      backgroundColor: textColor,
+                      color: bgColor.includes('gradient') ? '#ffffff' : bgColor
+                    }}
+                    whileHover={{ scale: 1.01 }}
+                  >
+                    🏠 แดชบอร์ด (เลือก)
+                  </motion.div>
+                  
+                  <motion.div 
+                    className="px-4 py-3 rounded-lg font-medium transition-colors"
+                    style={{ color: textColor }}
+                    whileHover={{ 
+                      backgroundColor: textColor + '15',
+                      x: 4 
+                    }}
+                  >
+                    📝 ทำข้อสอบ
+                  </motion.div>
+                  
+                  <motion.div 
+                    className="px-4 py-3 rounded-lg font-medium transition-colors"
+                    style={{ color: textColor }}
+                    whileHover={{ 
+                      backgroundColor: textColor + '15',
+                      x: 4 
+                    }}
+                  >
+                    🚪 ออกจากระบบ
+                  </motion.div>
+                </motion.div>
               </div>
-            </div>
+            </motion.div>
           </div>
-
-          <div className="flex items-center justify-between">
-            <span 
-              className="font-medium"
-              style={{ color: currentTheme.textColor }}
-            >
-              ตัวอย่างธีม
-            </span>
-            <div
-              className="rounded px-4 py-2 shadow"
-              style={{
-                backgroundColor: bgColor,
-                color: textColor,
-                border: `1px solid ${currentTheme.textColor}30`
-              }}
-            >
-              ตัวอย่างข้อความ
-            </div>
-          </div>
-
-          {/* ตัวอย่าง MainMenu */}
-          <div 
-            className="rounded-lg p-4"
-            style={{
-              border: `1px solid ${currentTheme.textColor}30`,
-              backgroundColor: currentTheme.textColor + '05'
-            }}
-          >
-            <p 
-              className="text-sm font-medium mb-3"
-              style={{ color: currentTheme.textColor }}
-            >
-              ตัวอย่าง MainMenu:
-            </p>
-            <div 
-              className="rounded-lg shadow-md p-3 w-48 space-y-2"
-              style={{ 
-                backgroundColor: bgColor,
-                borderWidth: "1px",
-                borderStyle: "solid",
-                borderColor: textColor + "40"
-              }}
-            >
-              <div 
-                className="px-3 py-2 rounded text-sm"
-                style={{
-                  backgroundColor: textColor,
-                  color: bgColor
-                }}
-              >
-                🏠 แดชบอร์ด (เลือก)
-              </div>
-              <div 
-                className="px-3 py-2 rounded text-sm"
-                style={{
-                  color: textColor
-                }}
-              >
-                📝 ทำข้อสอบ
-              </div>
-              <div 
-                className="px-3 py-2 rounded text-sm"
-                style={{
-                  color: textColor
-                }}
-              >
-                🚪 ออกจากระบบ
-              </div>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSave}
-            className="mt-4 text-lg px-6 py-3 rounded w-full transition hover:opacity-80"
-            style={{
-              backgroundColor: currentTheme.bgColor === '#ffffff' ? '#10b981' : '#065f46', // เขียวเข้มในธีมมืด
-              color: '#ffffff'
-            }}
-          >
-            ✅ บันทึกธีม
-          </button>
-
-          <button
-            onClick={handleReset}
-            className="text-sm px-4 py-2 rounded w-full transition hover:opacity-80"
-            style={{
-              backgroundColor: currentTheme.textColor + '20',
-              color: currentTheme.textColor,
-              border: `1px solid ${currentTheme.textColor}40`
-            }}
-          >
-            ♻️ รีเซ็ตกลับค่าเริ่มต้น
-          </button>
-        </div>
-      </main>
+        </motion.div>
+      </div>
     </ThemedLayout>
   )
 }

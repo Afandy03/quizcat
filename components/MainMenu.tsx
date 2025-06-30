@@ -5,7 +5,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { auth } from "@/lib/firebase"
-import { useUserTheme } from "@/lib/useTheme"
+import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme"
+import { isCurrentUserTest } from "@/lib/testUser"
 
 const menuItems = [
   // 🔹 พื้นฐาน
@@ -25,8 +26,8 @@ const menuItems = [
   { label: "ตั้งค่า", path: "/settings", icon: "⚙️", guestAllowed: true }, // Guest สามารถเปลี่ยนธีมได้
 
   // 🔹 แอดมิน
-  { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false },
-  { label: "วิเคราะห์ผล V2", path: "/analysis", icon: "📊", guestAllowed: false },
+  { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false }, // เปลี่ยนไอคอนให้ดูแยกออก
+  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈", guestAllowed: true },
   
   // 🔹 ออกจากระบบ
   { label: "ออกจากระบบ", path: "/login", icon: "🚪", guestAllowed: true },
@@ -35,6 +36,7 @@ const menuItems = [
 export default function MainMenu() {
   const currentPath = usePathname()
   const [isGuest, setIsGuest] = useState(false)
+  const [isTestUser, setIsTestUser] = useState(false)
   const theme = useUserTheme()
 
   useEffect(() => {
@@ -45,9 +47,11 @@ export default function MainMenu() {
         localStorage.removeItem('quizcat-guest-id')
         localStorage.removeItem('quizcat-guest-mode')
         setIsGuest(false)
+        setIsTestUser(isCurrentUserTest())
       } else {
         const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
         setIsGuest(isGuestMode)
+        setIsTestUser(false)
       }
     }
 
@@ -90,7 +94,7 @@ export default function MainMenu() {
     <nav 
       className="fixed top-4 left-4 rounded-xl shadow-lg border p-4 space-y-1 w-52 z-50"
       style={{ 
-        backgroundColor: menuBgColor,
+        ...getBackgroundStyle(menuBgColor),
         borderColor: borderColor,
         color: menuTextColor 
       }}
@@ -105,6 +109,18 @@ export default function MainMenu() {
           }}
         >
           🎭 โหมดผู้เยี่ยมชม
+        </div>
+      )}
+      {isTestUser && (
+        <div 
+          className="border px-3 py-2 rounded-lg text-xs text-center mb-3"
+          style={{
+            backgroundColor: '#8b5cf6' + '20',
+            borderColor: '#8b5cf6',
+            color: '#6d28d9'
+          }}
+        >
+          🤖 Test User Mode
         </div>
       )}
       {visibleMenuItems.map((item) => (

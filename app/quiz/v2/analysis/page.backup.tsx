@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { collection, getDocs, query, where } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
-import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
+import { useUserTheme } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 
 interface QuizV2Answer {
@@ -237,7 +237,7 @@ export default function QuizV2AnalysisPage() {
         {/* Overall Performance */}
         <div 
           className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
             🎯 ผลงานโดยรวม
@@ -297,7 +297,7 @@ export default function QuizV2AnalysisPage() {
         {/* Subject Weakness Analysis */}
         <div 
           className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
             📉 จุดอ่อนแต่ละวิชา
@@ -364,7 +364,7 @@ export default function QuizV2AnalysisPage() {
         {/* Confidence vs Accuracy */}
         <div 
           className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
             🧠 ความมั่นใจ vs ความถูกต้อง
@@ -431,7 +431,7 @@ export default function QuizV2AnalysisPage() {
         {/* Recent Sessions */}
         <div 
           className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          style={{ backgroundColor: theme.bgColor, border: `1px solid ${theme.textColor}20` }}
         >
           <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
             📊 ประวัติการทำข้อสอบล่าสุด

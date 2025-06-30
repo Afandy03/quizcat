@@ -21,7 +21,14 @@ export function useUserTheme() {
 
   // อัปเดต CSS variables เมื่อ theme เปลี่ยน
   useEffect(() => {
-    document.documentElement.style.setProperty('--background', theme.bgColor)
+    // รองรับ gradient
+    if (theme.bgColor.includes('gradient')) {
+      document.documentElement.style.setProperty('--background', 'transparent')
+      document.body.style.background = theme.bgColor
+    } else {
+      document.documentElement.style.setProperty('--background', theme.bgColor)
+      document.body.style.background = ''
+    }
     document.documentElement.style.setProperty('--foreground', theme.textColor)
   }, [theme])
 
@@ -76,4 +83,12 @@ export function useUserTheme() {
 // ฟังก์ชันสำหรับบันทึก theme ของ guest
 export function saveGuestTheme(theme: Theme) {
   localStorage.setItem('quizcat-guest-theme', JSON.stringify(theme))
+}
+
+// ฟังก์ชัน helper สำหรับการใช้ background ที่รองรับ gradient
+export function getBackgroundStyle(bgColor: string) {
+  const isGradient = bgColor.includes('gradient')
+  return isGradient 
+    ? { background: bgColor }
+    : { backgroundColor: bgColor }
 }
