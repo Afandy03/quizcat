@@ -23,7 +23,7 @@ interface Question {
 
 export default function AddQuestionPage() {
   const router = useRouter();
-  const theme = useUserTheme();
+  const { theme } = useUserTheme();
   const [subjects, setSubjects] = useState<string[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -153,43 +153,51 @@ export default function AddQuestionPage() {
 
     setSaving(true);
     try {
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: async (results) => {
-          const data = results.data as any[];
-          let successCount = 0;
-
-          for (const row of data) {
-            if (!row.question || !row.choice1 || !row.correctIndex) continue;
-
-            try {
-              await addDoc(collection(db, "questions"), {
-                question: row.question,
-                choices: [row.choice1, row.choice2 || "", row.choice3 || "", row.choice4 || ""],
-                correctIndex: Number(row.correctIndex) - 1,
-                subject: formData.subject,
-                topic: formData.topic,
-                grade: formData.grade,
-                difficulty: formData.difficulty,
-                explanation: row.explanation || "",
-                createdAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              });
-              successCount++;
-            } catch (error) {
-              console.error("Error adding question:", error);
-            }
-          }
-
-          alert(`🚀 นำเข้าสำเร็จ ${successCount} ข้อสอบ!`);
-          resetForm();
-          fetchExistingData();
-        },
+      const results = await new Promise((resolve) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (res: Papa.ParseResult<any>) => resolve(res),
+        });
       });
+
+      const data = (results as any).data as any[];
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const row of data) {
+        if (!row.question || !row.choice1 || !row.correctIndex) {
+          errorCount++;
+          continue;
+        }
+
+        try {
+          await addDoc(collection(db, "questions"), {
+            question: row.question,
+            choices: [row.choice1, row.choice2 || "", row.choice3 || "", row.choice4 || ""],
+            correctIndex: Number(row.correctIndex) - 1,
+            subject: formData.subject,
+            topic: formData.topic,
+            grade: formData.grade,
+            difficulty: formData.difficulty,
+            explanation: row.explanation || "",
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          successCount++;
+        } catch (error) {
+          console.error("Error adding question from CSV row:", error);
+          errorCount++;
+        }
+      }
+
+      alert(`🚀 นำเข้าสำเร็จ ${successCount} ข้อสอบ! (ผิดพลาด ${errorCount} ข้อ)`);
+      resetForm();
+      fetchExistingData();
+
     } catch (error) {
       console.error("Error importing CSV:", error);
-      alert("❌ เกิดข้อผิดพลาดในการนำเข้า CSV");
+      alert("❌ เกิดข้อผิดพลาดในการนำเข้า CSV, กรุณาตรวจสอบรูปแบบไฟล์");
     } finally {
       setSaving(false);
     }
@@ -376,18 +384,9 @@ export default function AddQuestionPage() {
                     <div className="space-y-3">
                       {formData.choices.map((choice, index) => (
                         <div key={index} className="flex items-center gap-4">
-                          <div className="flex items-center">
-                            <input
-                              type="radio"
-                              name="correctAnswer"
-                              checked={formData.correctIndex === index}
-                              onChange={() => setFormData({...formData, correctIndex: index})}
-                              className="mr-3 scale-125"
-                            />
-                            <span className="text-lg font-bold w-8" style={{ color: theme.textColor }}>
-                              {String.fromCharCode(65 + index)}.
-                            </span>
-                          </div>
+                          <span className="text-lg font-bold w-8" style={{ color: theme.textColor }}>
+                            {String.fromCharCode(65 + index)}.
+                          </span>
                           <input
                             type="text"
                             value={choice}
@@ -407,6 +406,27 @@ export default function AddQuestionPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Correct Answer Selection */}
+                  <div>
+                    <label className="block text-sm font-medium mb-3" style={{ color: theme.textColor + '80' }}>✅ คำตอบที่ถูกต้อง</label>
+                    <select
+                      value={formData.correctIndex}
+                      onChange={(e) => setFormData({ ...formData, correctIndex: parseInt(e.target.value) })}
+                      className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+                      style={{
+                        ...getBackgroundStyle(theme.bgColor),
+                        color: theme.textColor,
+                        borderColor: theme.textColor + '30'
+                      }}
+                    >
+                      {formData.choices.map((choice, index) => (
+                        <option key={index} value={index}>
+                          {String.fromCharCode(65 + index)}. {choice || `ตัวเลือก ${String.fromCharCode(65 + index)}`}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Explanation */}

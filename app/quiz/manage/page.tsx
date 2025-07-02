@@ -180,9 +180,9 @@ export default function QuizManagePage() {
   };
 
   const filteredQuestions = questions.filter(q => {
-    const matchesSearch = q.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         q.topic.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (q.question || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (q.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (q.topic || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = !filterSubject || q.subject === filterSubject;
     const matchesTopic = !filterTopic || q.topic === filterTopic;
     const matchesGrade = !filterGrade || q.grade.toString() === filterGrade;
@@ -322,7 +322,7 @@ export default function QuizManagePage() {
 
         {/* Edit Form Modal */}
         {editingQuestion && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="fixed inset-0 flex items-start justify-center z-50 p-4 overflow-y-auto" style={{backdropFilter: 'blur(16px)'}}>
             <div
               className="mt-10 rounded-2xl p-6 w-full max-w-3xl"
               style={{ ...getBackgroundStyle(theme.bgColor) }}
@@ -447,16 +447,7 @@ export default function QuizManagePage() {
                   <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>📝 ตัวเลือก</label>
                   {formData.choices.map((choice, index) => (
                     <div key={index} className="flex items-center gap-3 mb-2">
-                      <div className="flex items-center">
-                        <input
-                          type="radio"
-                          name="correctAnswer"
-                          checked={formData.correctIndex === index}
-                          onChange={() => setFormData({...formData, correctIndex: index})}
-                          className="mr-2"
-                        />
-                        <span className="text-sm font-medium" style={{ color: theme.textColor }}>{String.fromCharCode(65 + index)}.</span>
-                      </div>
+                      <span className="text-sm font-medium w-8" style={{ color: theme.textColor }}>{String.fromCharCode(65 + index)}.</span>
                       <input
                         type="text"
                         value={choice}
@@ -475,6 +466,25 @@ export default function QuizManagePage() {
                       />
                     </div>
                   ))}
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>✅ คำตอบที่ถูก</label>
+                    <select
+                      value={formData.correctIndex}
+                      onChange={(e) => setFormData({...formData, correctIndex: parseInt(e.target.value)})}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      style={{ 
+                        ...getBackgroundStyle(theme.bgColor),
+                        color: theme.textColor,
+                        borderColor: theme.textColor + '30'
+                      }}
+                    >
+                      {formData.choices.map((_, index) => (
+                        <option key={index} value={index}>
+                          {String.fromCharCode(65 + index)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* Explanation */}
