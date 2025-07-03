@@ -1,159 +1,100 @@
 'use client'
 
-import { useEffect, useState } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { auth, db } from "@/lib/firebase"
-import { onAuthStateChanged, signOut } from "firebase/auth"
-import { doc, getDoc, setDoc } from "firebase/firestore"
-import ThemedLayout from "@/components/ThemedLayout"
-import UserPoints from "@/components/UserPoints"
-import { isCurrentUserTest } from "@/lib/testUser"
-
 export default function DashboardPage() {
-  const [userData, setUserData] = useState<{ points: number; name?: string; avatarUrl?: string }>({
-    points: 0,
-    name: '',
-    avatarUrl: '',
-  })
-  const [isGuest, setIsGuest] = useState(false)
-  const [isTestUser, setIsTestUser] = useState(false)
-
-  const router = useRouter()
-
-  useEffect(() => {
-    // สำหรับ authenticated users
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
-        // ตรวจสอบ guest mode เฉพาะเมื่อไม่มี authenticated user
-        const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-        if (isGuestMode) {
-          setIsGuest(true)
-          setUserData({
-            points: 0,
-            name: 'ผู้เยี่ยมชม',
-            avatarUrl: '',
-          })
-          return
-        }
-        router.push('/login')
-        return
-      }
-      
-      // ถ้ามี authenticated user แล้ว ลบ guest session ออก
-      localStorage.removeItem('quizcat-guest-id')
-      localStorage.removeItem('quizcat-guest-mode')
-      setIsGuest(false)
-      
-      // ตรวจสอบว่าเป็น test user หรือไม่
-      setIsTestUser(isCurrentUserTest())
-      
-      const ref = doc(db, 'users', user.uid)
-      const snap = await getDoc(ref)
-      if (snap.exists()) {
-        const data = snap.data()
-        setUserData({
-          points: data.points || 0,
-          name: data.name || '',
-          avatarUrl: data.avatarUrl || '',
-        })
-      } else {
-        await setDoc(ref, { points: 0, status: 'online' })
-        setUserData({ points: 0, name: '' })
-      }
-    })
-    return () => unsub()
-  }, [router])
-
-  const handleSignOut = async () => {
-    if (isGuest) {
-      // ลบ guest session
-      localStorage.removeItem('quizcat-guest-id')
-      localStorage.removeItem('quizcat-guest-mode')
-      router.push('/login')
-    } else if (auth.currentUser) {
-      await signOut(auth)
-      router.push('/login')
-    }
-  }
-
   return (
-    <ThemedLayout>
-      <div className="max-w-3xl mx-auto space-y-8">
-        {/* รูปโปรไฟล์ */}
-        <div className="flex flex-col items-center">
-          {userData.avatarUrl ? (
-            <img
-              src={userData.avatarUrl}
-              alt="avatar"
-              className="w-20 h-20 rounded-full object-cover"
-            />
-          ) : (
-            <div className="w-20 h-20 rounded-full bg-gray-300 text-3xl flex items-center justify-center text-white">
-              {userData.name?.charAt(0).toUpperCase() || "?"}
-            </div>
-          )}
-          <h1 className="text-3xl font-bold mt-2 text-center">
-            👋 ยินดีต้อนรับ, {userData.name || 'ผู้ใช้'}!
-          </h1>
-          {isGuest && (
-            <div className="bg-amber-100 border border-amber-300 text-amber-800 px-4 py-2 rounded-lg text-center mt-2">
-              🎭 คุณอยู่ในโหมดผู้เยี่ยมชม - คะแนนจะไม่ถูกบันทึก
-            </div>
-          )}
-          {isTestUser && (
-            <div className="bg-purple-100 border border-purple-300 text-purple-800 px-4 py-2 rounded-lg text-center mt-2">
-              🤖 Test User Mode - สำหรับ AI/Automation Testing
-            </div>
-          )}
-        </div>
-
-        {!isGuest && <UserPoints points={userData.points} />}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Link
-            href="/quiz/select"
-            className="bg-orange-500 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90"
-          >
-            🚀 เริ่มทำข้อสอบ
-          </Link>
-          <Link
-            href="/add-question"
-            className="bg-purple-500 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90"
-          >
-            ➕ เพิ่มข้อสอบใหม่
-          </Link>
-          <Link
-            href="/dashboard/questions"
-            className="bg-blue-500 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90"
-          >
-            📋 ข้อสอบของฉัน
-          </Link>
-
-          <Link href="/rewards" className="bg-yellow-500 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90">
-            🎁 แลกของรางวัล
-          </Link>
-          <Link
-            href="/settings"
-            className="bg-gray-600 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90"
-          >
-            ⚙️ ตั้งค่า
-          </Link>
-          <Link
-            href="/profile"
-            className="bg-green-600 text-white p-4 rounded-lg flex items-center justify-center hover:opacity-90 col-span-full"
-          >
-            🙋 โปรไฟล์ของฉัน
-          </Link>
-        </div>
-
-        <button
-          onClick={handleSignOut}
-          className="w-full bg-red-500 text-white p-3 rounded-lg hover:opacity-90"
-        >
-          🚪 ออกจากระบบ
-        </button>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden" 
+         style={{
+           background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+         }}>
+      {/* Animated Background Elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        {/* Floating Orbs */}
+        <div className="absolute top-20 left-20 w-32 h-32 bg-white bg-opacity-10 rounded-full blur-xl animate-pulse"></div>
+        <div className="absolute bottom-20 right-20 w-40 h-40 bg-pink-300 bg-opacity-20 rounded-full blur-2xl animate-bounce"></div>
+        <div className="absolute top-40 right-40 w-24 h-24 bg-yellow-300 bg-opacity-15 rounded-full blur-lg animate-pulse delay-1000"></div>
+        <div className="absolute bottom-40 left-40 w-36 h-36 bg-blue-300 bg-opacity-15 rounded-full blur-xl animate-bounce delay-500"></div>
+        
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-pink-900/20"></div>
       </div>
-    </ThemedLayout>
+      
+      {/* Main Content */}
+      <div className="relative z-10 text-center p-8 max-w-4xl mx-auto">
+        {/* Glowing Title */}
+        <div className="mb-8">
+          <h1 className="text-6xl md:text-8xl font-black mb-4 bg-gradient-to-r from-white via-pink-200 to-purple-200 bg-clip-text text-transparent"
+              style={{
+                textShadow: '0 0 30px rgba(255,255,255,0.5), 0 0 60px rgba(255,255,255,0.3)',
+                filter: 'drop-shadow(0 0 20px rgba(255,255,255,0.4))'
+              }}>
+            🚧 กำลังก่อสร้าง 🚧
+          </h1>
+        </div>
+        
+        {/* Stylized Message */}
+        <div className="backdrop-blur-lg bg-white/10 border border-white/20 rounded-3xl p-8 shadow-2xl">
+          <div className="relative">
+            {/* Sparkle Effects */}
+            <div className="absolute -top-4 -left-4 text-yellow-300 text-2xl animate-spin">✨</div>
+            <div className="absolute -top-2 -right-6 text-pink-300 text-xl animate-pulse">💫</div>
+            <div className="absolute -bottom-4 -right-4 text-blue-300 text-2xl animate-bounce">⭐</div>
+            <div className="absolute -bottom-2 -left-6 text-purple-300 text-xl animate-pulse delay-500">🌟</div>
+            
+            <p className="text-2xl md:text-3xl font-bold text-white mb-6 leading-relaxed"
+               style={{
+                 textShadow: '0 2px 20px rgba(0,0,0,0.5), 0 0 40px rgba(255,255,255,0.3)',
+                 letterSpacing: '0.02em'
+               }}>
+              กูขี้เกียจเขียนโว้ยยย ข้าวก็ไม่ได้กิน นอนก็ไม่ได้นอน 😴<br/>
+              รอช้าลลล มีแพทชั่นมากกว่านี้ 🔥<br/>
+              เดี๋ยวค่อยมาเขียนต่อ บายยยยย ลาก่อยย🫠
+            </p>
+            
+            {/* Animated Progress Bar */}
+            <div className="mt-8">
+              <div className="text-white/80 text-sm mb-2">ความคืบหน้า</div>
+              <div className="w-full bg-white/20 rounded-full h-3 overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full animate-pulse"
+                     style={{ width: '42%' }}></div>
+              </div>
+              <div className="text-white/60 text-xs mt-1">42% เสร็จแล้ว... หรือเปล่า? 🤔</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Loading Animation */}
+        <div className="mt-8 flex justify-center items-center space-x-2">
+          <div className="w-3 h-3 bg-white rounded-full animate-bounce"></div>
+          <div className="w-3 h-3 bg-pink-300 rounded-full animate-bounce delay-100"></div>
+          <div className="w-3 h-3 bg-purple-300 rounded-full animate-bounce delay-200"></div>
+        </div>
+        
+        {/* Fun Status Message */}
+        <div className="mt-6 text-white/70 text-lg font-medium">
+          <span className="animate-pulse">⏳ กำลังสร้างสรรค์ผลงานชิ้นเอก...</span>
+        </div>
+      </div>
+      
+      {/* Floating CSS Animation */}
+      <style jsx>{`
+        @keyframes float {
+          0%, 100% { transform: translateY(0px); }
+          50% { transform: translateY(-20px); }
+        }
+        
+        .animate-float {
+          animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes glow {
+          0%, 100% { box-shadow: 0 0 20px rgba(255,255,255,0.2); }
+          50% { box-shadow: 0 0 40px rgba(255,255,255,0.4); }
+        }
+        
+        .animate-glow {
+          animation: glow 2s ease-in-out infinite;
+        }
+      `}</style>
+    </div>
   )
 }

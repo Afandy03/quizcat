@@ -4,87 +4,39 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState, useMemo, useCallback } from "react"
-import { auth } from "@/lib/firebase"
 import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme"
-import { isCurrentUserTest } from "@/lib/testUser"
 
 const menuItems = [
   // 🔹 พื้นฐาน
-  { label: "แดชบอร์ด", path: "/dashboard", icon: "🏠", guestAllowed: true },
-  { label: "ทำข้อสอบ V2", path: "/quiz/v2/select", icon: "🚀", guestAllowed: true },
+  { label: "แดชบอร์ด", path: "/dashboard", icon: "🏠" },
+  { label: "ทำข้อสอบ V2", path: "/quiz/v2/select", icon: "🚀" },
 
   // 🔹 ของรางวัล
-  { label: "แลกของรางวัล", path: "/rewards", icon: "🎁", guestAllowed: false },
-  { label: "เพิ่มรางวัล", path: "/rewards/add", icon: "➕", guestAllowed: false },
+  { label: "แลกของรางวัล", path: "/rewards", icon: "🎁" },
 
   // 🔹 ข้อสอบ
-  { label: "เพิ่มข้อสอบ", path: "/add-question", icon: "➕", guestAllowed: false },
-  { label: "จัดการข้อสอบ", path: "/quiz/manage", icon: "🗂️", guestAllowed: false },
+  { label: "จัดการข้อสอบ", path: "/quiz/manage", icon: "🗂️" },
 
   // 🔹 ผู้ใช้
-  { label: "โปรไฟล์", path: "/profile", icon: "🙋", guestAllowed: false },
-  { label: "ตั้งค่า", path: "/settings", icon: "⚙️", guestAllowed: true }, // Guest สามารถเปลี่ยนธีมได้
+  { label: "โปรไฟล์", path: "/profile", icon: "🙋" },
+  { label: "ตั้งค่า", path: "/settings", icon: "⚙️" },
 
   // 🔹 แอดมิน
-  { label: "แอดมิน", path: "/admin/users", icon: "🛠️", guestAllowed: false }, // เปลี่ยนไอคอนให้ดูแยกออก
-  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈", guestAllowed: true },
+  { label: "แอดมิน", path: "/admin/users", icon: "🛠️" },
+  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈" },
   
   // 🔹 ออกจากระบบ
-  { label: "ออกจากระบบ", path: "/login", icon: "🚪", guestAllowed: true },
+  { label: "ออกจากระบบ", path: "/login", icon: "🚪" },
 ]
 
 export default function MainMenu() {
   const currentPath = usePathname()
-  const [isGuest, setIsGuest] = useState(false)
-  const [isTestUser, setIsTestUser] = useState(false)
-  const [authStateInitialized, setAuthStateInitialized] = useState(false)
   const [mounted, setMounted] = useState(false)
   const { theme, isLoading } = useUserTheme()
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Memoize การตรวจสอบ guest status เพื่อลดการ re-render
-  const checkGuestStatus = useCallback(() => {
-    // ถ้ามี authenticated user ลบ guest session
-    if (auth.currentUser) {
-      localStorage.removeItem('quizcat-guest-id')
-      localStorage.removeItem('quizcat-guest-mode')
-      setIsGuest(false)
-      setIsTestUser(isCurrentUserTest())
-    } else {
-      const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-      setIsGuest(isGuestMode)
-      setIsTestUser(false)
-    }
-    setAuthStateInitialized(true)
-  }, [])
-
-  useEffect(() => {
-    // เรียกแค่ครั้งเดียวเมื่อ component mount
-    if (!authStateInitialized) {
-      checkGuestStatus()
-    }
-    
-    // ฟัง auth state changes แต่ใช้ debounce เพื่อป้องกันการเรียกบ่อยเกินไป
-    let timeoutId: NodeJS.Timeout
-    const unsubscribe = auth.onAuthStateChanged(() => {
-      clearTimeout(timeoutId)
-      timeoutId = setTimeout(checkGuestStatus, 100) // debounce 100ms
-    })
-
-    return () => {
-      unsubscribe()
-      clearTimeout(timeoutId)
-    }
-  }, [checkGuestStatus, authStateInitialized])
-
-  // Memoize visible menu items เพื่อป้องกันการคำนวณใหม่ทุกครั้ง
-  const visibleMenuItems = useMemo(() => 
-    menuItems.filter(item => isGuest ? item.guestAllowed : true),
-    [isGuest]
-  )
 
   // Memoize สีต่างๆ เพื่อป้องกันการคำนวณใหม่ทุกครั้ง
   const menuColors = useMemo(() => {
@@ -162,7 +114,7 @@ export default function MainMenu() {
     color: "#000000"
   }
 
-  if (!mounted || isLoading || !authStateInitialized) {
+  if (!mounted || isLoading) {
     return (
       <nav 
         className="fixed top-4 left-4 rounded-xl shadow-lg border p-4 space-y-1 w-52 z-50"
@@ -187,33 +139,7 @@ export default function MainMenu() {
       }}
       suppressHydrationWarning
     >
-      {isGuest && (
-        <div 
-          className="border px-3 py-2 rounded-lg text-xs text-center mb-3"
-          style={{
-            backgroundColor: theme.textColor + '10',
-            borderColor: theme.textColor + '40',
-            color: theme.textColor
-          }}
-          suppressHydrationWarning
-        >
-          🎭 โหมดผู้เยี่ยมชม
-        </div>
-      )}
-      {isTestUser && (
-        <div 
-          className="border px-3 py-2 rounded-lg text-xs text-center mb-3"
-          style={{
-            backgroundColor: '#8b5cf6' + '20',
-            borderColor: '#8b5cf6',
-            color: '#6d28d9'
-          }}
-          suppressHydrationWarning
-        >
-          🤖 Test User Mode
-        </div>
-      )}
-      {visibleMenuItems.map((item) => (
+      {menuItems.map((item) => (
         <Link
           key={item.path}
           href={item.path}

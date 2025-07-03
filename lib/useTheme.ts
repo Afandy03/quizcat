@@ -28,35 +28,17 @@ function loadThemeFromStorage(): Theme {
     return globalThemeCache
   }
   
-  const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-  console.log('🔍 Guest mode:', isGuestMode)
-  
-  if (isGuestMode) {
-    const savedTheme = localStorage.getItem('quizcat-guest-theme')
-    console.log('👥 Guest theme from localStorage:', savedTheme)
-    if (savedTheme) {
-      try {
-        const parsed = JSON.parse(savedTheme)
-        globalThemeCache = parsed
-        console.log('✅ Guest theme loaded:', parsed)
-        return parsed
-      } catch (error) {
-        console.error('❌ Error parsing guest theme:', error)
-      }
-    }
-  } else {
-    // สำหรับ user ที่ login แล้ว ลองหา cache theme
-    const cachedTheme = localStorage.getItem('quizcat-user-theme-cache')
-    console.log('👤 User theme cache from localStorage:', cachedTheme)
-    if (cachedTheme) {
-      try {
-        const parsed = JSON.parse(cachedTheme)
-        globalThemeCache = parsed
-        console.log('✅ User theme cache loaded:', parsed)
-        return parsed
-      } catch (error) {
-        console.error('❌ Error parsing cached theme:', error)
-      }
+  // สำหรับ user ที่ login แล้ว ลองหา cache theme
+  const cachedTheme = localStorage.getItem('quizcat-user-theme-cache')
+  console.log('👤 User theme cache from localStorage:', cachedTheme)
+  if (cachedTheme) {
+    try {
+      const parsed = JSON.parse(cachedTheme)
+      globalThemeCache = parsed
+      console.log('✅ User theme cache loaded:', parsed)
+      return parsed
+    } catch (error) {
+      console.error('❌ Error parsing cached theme:', error)
     }
   }
   
@@ -103,32 +85,6 @@ export function useUserTheme() {
     // ถ้า theme ถูกโหลดแล้วจาก global cache ไม่ต้องทำอะไร
     if (themeLoadedRef.current && authListenerRef.current) {
       return authListenerRef.current
-    }
-
-    // ตรวจสอบ guest mode ก่อน
-    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-    
-    if (isGuestMode) {
-      console.log('👤 Guest mode detected')
-      // สำหรับ guest ใช้ theme จาก localStorage
-      const savedTheme = localStorage.getItem('quizcat-guest-theme')
-      if (savedTheme) {
-        try {
-          const parsedTheme = JSON.parse(savedTheme)
-          updateTheme(parsedTheme)
-          console.log('✅ Guest theme loaded:', parsedTheme)
-        } catch (error) {
-          console.error('Error parsing guest theme:', error)
-          updateTheme({ bgColor: "#ffffff", textColor: "#000000" })
-        }
-      } else {
-        updateTheme({ bgColor: "#ffffff", textColor: "#000000" })
-        console.log('🔧 Guest using default theme')
-      }
-      // ✅ ไม่ต้อง setIsLoading(false) เพราะเราเริ่มต้นเป็น false แล้ว
-      globalThemeInitialized = true
-      themeLoadedRef.current = true
-      return
     }
 
     // onAuthStateChanged จะคอยฟังว่าสถานะ login เปลี่ยนไปมั้ย (login, logout)
@@ -200,11 +156,6 @@ export function useUserTheme() {
   }, [updateTheme]) // ขึ้นอยู่กับ updateTheme เท่านั้น
 
   return { theme, isLoading } // คืนค่า theme และสถานะการโหลด
-}
-
-// ฟังก์ชันสำหรับบันทึก theme ของ guest
-export function saveGuestTheme(theme: Theme) {
-  localStorage.setItem('quizcat-guest-theme', JSON.stringify(theme))
 }
 
 // ฟังก์ชัน helper สำหรับการใช้ background ที่รองรับ gradient

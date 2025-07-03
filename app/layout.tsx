@@ -13,19 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               // Theme preloader เพื่อป้องกันการกระพริบ
               (function() {
                 try {
-                  const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true';
                   let theme = { bgColor: '#ffffff', textColor: '#000000' };
                   
-                  if (isGuestMode) {
-                    const savedTheme = localStorage.getItem('quizcat-guest-theme');
-                    if (savedTheme) {
-                      theme = JSON.parse(savedTheme);
-                    }
-                  } else {
-                    const cachedTheme = localStorage.getItem('quizcat-user-theme-cache');
-                    if (cachedTheme) {
-                      theme = JSON.parse(cachedTheme);
-                    }
+                  const cachedTheme = localStorage.getItem('quizcat-user-theme-cache');
+                  if (cachedTheme) {
+                    theme = JSON.parse(cachedTheme);
                   }
                   
                   document.documentElement.style.setProperty('--background', theme.bgColor);

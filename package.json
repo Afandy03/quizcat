@@ -14,11 +14,12 @@
     "framer-motion": "^12.19.2",
     "next": "15.3.4",
     "nprogress": "^0.2.0",
+    "openai": "^5.8.2",
     "papaparse": "^5.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-select": "^5.10.1",
-    "recharts": "^3.0.0"
+    "recharts": "^3.0.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

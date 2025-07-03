@@ -15,11 +15,12 @@ interface Question {
   correctIndex: number;
   subject: string;
   topic: string;
-  grade: number;
+  grade: string;
   difficulty: 'easy' | 'medium' | 'hard';
   explanation?: string;
   createdAt?: Date;
   updatedAt?: Date;
+  createdBy?: string;
 }
 
 export default function QuizManagePage() {
@@ -35,6 +36,8 @@ export default function QuizManagePage() {
   const [subjects, setSubjects] = useState<string[]>([]);
   const [topics, setTopics] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [userRole, setUserRole] = useState<string>("user");
+  const [userEmail, setUserEmail] = useState<string>("");
 
   // Form states for editing only
   const [formData, setFormData] = useState<Question>({
@@ -43,7 +46,7 @@ export default function QuizManagePage() {
     correctIndex: 0,
     subject: "",
     topic: "",
-    grade: 1,
+    grade: "1",
     difficulty: 'medium',
     explanation: ""
   });
@@ -62,17 +65,24 @@ export default function QuizManagePage() {
   }, [editingQuestion]);
 
   useEffect(() => {
-    // ตรวจสอบ guest mode - ไม่อนุญาตให้ guest จัดการข้อสอบ
-    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-    if (isGuestMode) {
-      router.push("/dashboard");
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, async (u) => {
       if (!u) {
         router.push("/login");
       } else {
+        // เก็บอีเมลผู้ใช้
+        setUserEmail(u.email || "");
+        
+        // ดึงข้อมูลบทบาทผู้ใช้จาก Firestore
+        try {
+          const userDoc = await getDocs(collection(db, "users"));
+          const userData = userDoc.docs.find(doc => doc.id === u.uid)?.data();
+          if (userData) {
+            setUserRole(userData?.role || "user");
+          }
+        } catch (err) {
+          console.error("Error fetching user role:", err);
+        }
+        
         fetchQuestions();
       }
     });
@@ -90,7 +100,7 @@ export default function QuizManagePage() {
       
       setQuestions(questionList);
       
-      // Extract unique subjects and topics
+      // Extract unique subjects and topics from actual data
       const uniqueSubjects = [...new Set(questionList.map(q => q.subject).filter(Boolean))];
       const uniqueTopics = [...new Set(questionList.map(q => q.topic).filter(Boolean))];
       setSubjects(uniqueSubjects);
@@ -128,7 +138,8 @@ export default function QuizManagePage() {
       setSaving(true);
       const questionData = {
         ...formData,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        createdBy: userEmail
       };
 
       if (editingQuestion?.id) {
@@ -161,6 +172,87 @@ export default function QuizManagePage() {
     }
   };
 
+  const handleDeleteSubject = async (subject: string) => {
+    if (userRole !== "admin") {
+      alert("❌ คุณไม่มีสิทธิ์ลบวิชาทั้งหมด เฉพาะ Admin เท่านั้นที่สามารถลบวิชาได้");
+      return;
+    }
+    
+    // ตรวจสอบจำนวนข้อสอบในวิชานี้
+    const subjectQuestions = questions.filter(q => q.subject === subject);
+    const questionCount = subjectQuestions.length;
+    
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบข้อสอบทั้งหมดในวิชา "${subject}" จำนวน ${questionCount} ข้อ? การกระทำนี้ไม่สามารถย้อนกลับได้!`)) {
+      return;
+    }
+    
+    // ขอคำยืนยันอีกครั้ง
+    if (!confirm(`⚠️ โปรดยืนยันอีกครั้ง: ต้องการลบข้อสอบทั้งหมดในวิชา "${subject}" จำนวน ${questionCount} ข้อใช่หรือไม่?`)) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      // ลบข้อสอบทีละข้อ
+      for (const question of subjectQuestions) {
+        if (question.id) {
+          await deleteDoc(doc(db, "questions", question.id));
+        }
+      }
+      
+      alert(`✅ ลบข้อสอบในวิชา "${subject}" ทั้งหมด ${questionCount} ข้อสำเร็จ!`);
+      fetchQuestions();
+    } catch (error) {
+      console.error("Error deleting subject questions:", error);
+      alert("❌ เกิดข้อผิดพลาดในการลบ");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteNoSubjectQuestions = async () => {
+    if (userRole !== "admin") {
+      alert("❌ คุณไม่มีสิทธิ์ลบข้อสอบเหล่านี้ เฉพาะ Admin เท่านั้นที่สามารถลบได้");
+      return;
+    }
+    
+    // หาข้อสอบที่ไม่มีวิชา
+    const noSubjectQuestions = questions.filter(q => !q.subject);
+    const questionCount = noSubjectQuestions.length;
+    
+    if (questionCount === 0) {
+      alert("ไม่พบข้อสอบที่ไม่มีวิชา");
+      return;
+    }
+    
+    if (!confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบข้อสอบที่ไม่มีวิชาทั้งหมด จำนวน ${questionCount} ข้อ? การกระทำนี้ไม่สามารถย้อนกลับได้!`)) {
+      return;
+    }
+    
+    // ขอคำยืนยันอีกครั้ง
+    if (!confirm(`⚠️ โปรดยืนยันอีกครั้ง: ต้องการลบข้อสอบที่ไม่มีวิชาทั้งหมด จำนวน ${questionCount} ข้อใช่หรือไม่?`)) {
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      // ลบข้อสอบทีละข้อ
+      for (const question of noSubjectQuestions) {
+        if (question.id) {
+          await deleteDoc(doc(db, "questions", question.id));
+        }
+      }
+      
+      alert(`✅ ลบข้อสอบที่ไม่มีวิชาทั้งหมด ${questionCount} ข้อสำเร็จ!`);
+      fetchQuestions();
+    } catch (error) {
+      console.error("Error deleting no subject questions:", error);
+      alert("❌ เกิดข้อผิดพลาดในการลบ");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEdit = (question: Question) => {
     setFormData(question);
     setEditingQuestion(question);
@@ -173,22 +265,89 @@ export default function QuizManagePage() {
       correctIndex: 0,
       subject: "",
       topic: "",
-      grade: 1,
+      grade: "1",
       difficulty: 'medium',
       explanation: ""
     });
   };
 
   const filteredQuestions = questions.filter(q => {
-    const matchesSearch = (q.question || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (q.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (q.topic || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const questionText = q.question || '';
+    const subjectText = q.subject || '';
+    const topicText = q.topic || '';
+    
+    const matchesSearch = questionText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         subjectText.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         topicText.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesSubject = !filterSubject || q.subject === filterSubject;
     const matchesTopic = !filterTopic || q.topic === filterTopic;
-    const matchesGrade = !filterGrade || q.grade.toString() === filterGrade;
+    const matchesGrade = !filterGrade || q.grade === filterGrade;
     
     return matchesSearch && matchesSubject && matchesTopic && matchesGrade;
   });
+
+  // Calculate real statistics
+  const getStatistics = () => {
+    const totalQuestions = questions.length;
+    
+    // ระบุค่า "ไม่มีวิชา" สำหรับข้อมูลที่ subject เป็น undefined หรือค่าว่าง
+    const questionsWithLabels = questions.map(q => ({
+      ...q,
+      subject: q.subject || "ไม่มีวิชา"
+    }));
+    
+    const uniqueSubjects = [...new Set(questionsWithLabels.map(q => q.subject).filter(Boolean))];
+    const uniqueTopics = [...new Set(questions.map(q => q.topic).filter(Boolean))];
+    // Include all grades (string values) that exist in questions
+    const validGrades = questions.map(q => q.grade).filter(g => g != null && g !== "").map(g => String(g));
+    const uniqueGrades = [...new Set(validGrades)];
+
+    const difficultyStats = questions.reduce((acc, q) => {
+      acc[q.difficulty] = (acc[q.difficulty] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // ใช้ questionsWithLabels ที่แทนที่ undefined ด้วย "ไม่มีวิชา" แล้ว
+    const subjectStats = questionsWithLabels.reduce((acc, q) => {
+      acc[q.subject] = (acc[q.subject] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // Count all grades (including string values)
+    const gradeStats = questions.reduce((acc, q) => {
+      if (q.grade != null && q.grade !== "") {
+        const gradeKey = String(q.grade);
+        acc[gradeKey] = (acc[gradeKey] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // นับจำนวนข้อสอบที่ไม่มีวิชา
+    const noSubjectCount = questions.filter(q => !q.subject).length;
+
+    return {
+      totalQuestions,
+      uniqueSubjects: uniqueSubjects.length,
+      uniqueTopics: uniqueTopics.length,
+      uniqueGrades: uniqueGrades.length,
+      filteredCount: filteredQuestions.length,
+      difficultyStats,
+      subjectStats,
+      gradeStats,
+      availableGrades: uniqueGrades.sort((a, b) => {
+        // Try to sort numerically first, fall back to string sort
+        const numA = parseInt(a);
+        const numB = parseInt(b);
+        if (!isNaN(numA) && !isNaN(numB)) {
+          return numA - numB;
+        }
+        return a.localeCompare(b);
+      }),
+      noSubjectCount
+    };
+  };
+
+  const stats = getStatistics();
 
   if (loading) {
     return (
@@ -220,36 +379,131 @@ export default function QuizManagePage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
             <div 
               className="rounded-xl p-4 shadow-sm border"
               style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
             >
-              <div className="text-2xl font-bold text-blue-600">{questions.length}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.totalQuestions}</div>
               <div className="text-sm" style={{ color: theme.textColor + '80' }}>ข้อสอบทั้งหมด</div>
             </div>
             <div 
               className="rounded-xl p-4 shadow-sm border"
               style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
             >
-              <div className="text-2xl font-bold text-green-600">{subjects.length}</div>
+              <div className="text-2xl font-bold text-green-600">{stats.uniqueSubjects}</div>
               <div className="text-sm" style={{ color: theme.textColor + '80' }}>วิชาทั้งหมด</div>
             </div>
             <div 
               className="rounded-xl p-4 shadow-sm border"
               style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
             >
-              <div className="text-2xl font-bold text-purple-600">{topics.length}</div>
+              <div className="text-2xl font-bold text-purple-600">{stats.uniqueTopics}</div>
               <div className="text-sm" style={{ color: theme.textColor + '80' }}>หัวข้อทั้งหมด</div>
             </div>
             <div 
               className="rounded-xl p-4 shadow-sm border"
               style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
             >
-              <div className="text-2xl font-bold text-orange-600">{filteredQuestions.length}</div>
+              <div className="text-2xl font-bold text-indigo-600">{stats.uniqueGrades}</div>
+              <div className="text-sm" style={{ color: theme.textColor + '80' }}>ระดับชั้น</div>
+            </div>
+            <div 
+              className="rounded-xl p-4 shadow-sm border"
+              style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
+            >
+              <div className="text-2xl font-bold text-orange-600">{stats.filteredCount}</div>
               <div className="text-sm" style={{ color: theme.textColor + '80' }}>ข้อสอบที่แสดง</div>
             </div>
           </div>
+
+          {/* Detailed Statistics */}
+          {stats.totalQuestions > 0 && (
+            <div 
+              className="rounded-xl p-6 shadow-sm border mb-6 space-y-4"
+              style={{ ...getBackgroundStyle(theme.bgColor), borderColor: theme.textColor + '20' }}
+            >
+              <h3 className="text-lg font-bold mb-4" style={{ color: theme.textColor }}>📊 สถิติรายละเอียด</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {/* Difficulty Distribution */}
+                <div>
+                  <h4 className="font-semibold mb-3" style={{ color: theme.textColor + '90' }}>⭐ ระดับความยาก</h4>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm" style={{ color: theme.textColor + '80' }}>🟢 ง่าย</span>
+                      <span className="font-bold text-green-600">{stats.difficultyStats.easy || 0} ข้อ</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm" style={{ color: theme.textColor + '80' }}>🟡 ปานกลาง</span>
+                      <span className="font-bold text-yellow-600">{stats.difficultyStats.medium || 0} ข้อ</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm" style={{ color: theme.textColor + '80' }}>🔴 ยาก</span>
+                      <span className="font-bold text-red-600">{stats.difficultyStats.hard || 0} ข้อ</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Top Subjects */}
+                <div>
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-semibold mb-3" style={{ color: theme.textColor + '90' }}>📚 วิชาที่มีข้อสอบมากสุด</h4>
+                    {userRole === "admin" && stats.noSubjectCount > 0 && (
+                      <button
+                        onClick={handleDeleteNoSubjectQuestions}
+                        className="text-xs px-2 py-1 rounded bg-red-500 text-white hover:bg-red-600 transition-colors mb-3"
+                        title="ลบข้อสอบที่ไม่มีวิชาทั้งหมด"
+                      >
+                        🗑️ ลบข้อสอบไม่มีวิชา ({stats.noSubjectCount} ข้อ)
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {Object.entries(stats.subjectStats)
+                      .sort(([,a], [,b]) => b - a)
+                      .slice(0, 3)
+                      .map(([subject, count]) => (
+                        <div key={subject} className="flex justify-between items-center">
+                          <span className="text-sm truncate" style={{ color: theme.textColor + '80' }} title={subject}>
+                            {subject === "ไม่มีวิชา" ? (
+                              <span className="text-red-500">⚠️ ไม่มีวิชา</span>
+                            ) : (
+                              subject.length > 15 ? subject.substring(0, 15) + '...' : subject
+                            )}
+                          </span>
+                          <span className="font-bold text-blue-600">{count} ข้อ</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Grade Distribution */}
+                <div>
+                  <h4 className="font-semibold mb-3" style={{ color: theme.textColor + '90' }}>🎓 การกระจายตามระดับชั้น</h4>
+                  <div className="space-y-2">
+                    {Object.entries(stats.gradeStats)
+                      .sort(([a], [b]) => {
+                        // Try to sort numerically first, fall back to string sort
+                        const numA = parseInt(a);
+                        const numB = parseInt(b);
+                        if (!isNaN(numA) && !isNaN(numB)) {
+                          return numA - numB;
+                        }
+                        return a.localeCompare(b);
+                      })
+                      .slice(0, 5)
+                      .map(([grade, count]) => (
+                        <div key={grade} className="flex justify-between items-center">
+                          <span className="text-sm" style={{ color: theme.textColor + '80' }}>{grade}</span>
+                          <span className="font-bold text-purple-600">{count} ข้อ</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Search and Filters */}
           <div 
@@ -271,21 +525,36 @@ export default function QuizManagePage() {
                   }}
                 />
               </div>
-              <select
-                value={filterSubject}
-                onChange={(e) => setFilterSubject(e.target.value)}
-                className="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                style={{ 
-                  ...getBackgroundStyle(theme.bgColor),
-                  color: theme.textColor,
-                  borderColor: theme.textColor + '30'
-                }}
-              >
-                <option value="">ทุกวิชา</option>
-                {subjects.map(subject => (
-                  <option key={subject} value={subject}>{subject}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={filterSubject}
+                  onChange={(e) => setFilterSubject(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  style={{ 
+                    ...getBackgroundStyle(theme.bgColor),
+                    color: theme.textColor,
+                    borderColor: theme.textColor + '30'
+                  }}
+                >
+                  <option value="">ทุกวิชา</option>
+                  {subjects.map(subject => (
+                    <option key={subject} value={subject}>
+                      {subject} ({stats.subjectStats[subject] || 0} ข้อ)
+                    </option>
+                  ))}
+                </select>
+                
+                {/* Admin Delete Subject Button */}
+                {userRole === "admin" && filterSubject && (
+                  <button
+                    onClick={() => handleDeleteSubject(filterSubject)}
+                    className="absolute right-0 top-0 mt-2 mr-10 text-red-500 hover:text-red-700"
+                    title="ลบข้อสอบทั้งหมดในวิชานี้"
+                  >
+                    🗑️
+                  </button>
+                )}
+              </div>
               <select
                 value={filterTopic}
                 onChange={(e) => setFilterTopic(e.target.value)}
@@ -297,9 +566,14 @@ export default function QuizManagePage() {
                 }}
               >
                 <option value="">ทุกหัวข้อ</option>
-                {topics.map(topic => (
-                  <option key={topic} value={topic}>{topic}</option>
-                ))}
+                {topics.map(topic => {
+                  const topicCount = questions.filter(q => q.topic === topic).length;
+                  return (
+                    <option key={topic} value={topic}>
+                      {topic} ({topicCount} ข้อ)
+                    </option>
+                  );
+                })}
               </select>
               <select
                 value={filterGrade}
@@ -312,8 +586,8 @@ export default function QuizManagePage() {
                 }}
               >
                 <option value="">ทุกระดับ</option>
-                {[1,2,3,4,5,6,7,8,9,10,11,12].map(grade => (
-                  <option key={grade} value={grade}>ป.{grade}</option>
+                {stats.availableGrades.map(grade => (
+                  <option key={grade} value={grade}>{grade} ({stats.gradeStats[grade]} ข้อ)</option>
                 ))}
               </select>
             </div>
@@ -322,7 +596,7 @@ export default function QuizManagePage() {
 
         {/* Edit Form Modal */}
         {editingQuestion && (
-          <div className="fixed inset-0 flex items-start justify-center z-50 p-4 overflow-y-auto" style={{backdropFilter: 'blur(16px)'}}>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center z-50 p-4 overflow-y-auto">
             <div
               className="mt-10 rounded-2xl p-6 w-full max-w-3xl"
               style={{ ...getBackgroundStyle(theme.bgColor) }}
@@ -393,7 +667,7 @@ export default function QuizManagePage() {
                     <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>🎓 ระดับชั้น</label>
                     <select
                       value={formData.grade}
-                      onChange={(e) => setFormData({...formData, grade: parseInt(e.target.value)})}
+                      onChange={(e) => setFormData({...formData, grade: e.target.value})}
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       style={{ 
                         ...getBackgroundStyle(theme.bgColor),
@@ -401,9 +675,16 @@ export default function QuizManagePage() {
                         borderColor: theme.textColor + '30'
                       }}
                     >
-                      {[1,2,3,4,5,6,7,8,9,10,11,12].map(grade => (
-                        <option key={grade} value={grade}>ป.{grade}</option>
-                      ))}
+                      {stats.availableGrades.length > 0 ? (
+                        stats.availableGrades.map(grade => (
+                          <option key={grade} value={grade}>{grade}</option>
+                        ))
+                      ) : (
+                        // Fallback to standard grades if no data exists yet
+                        ["1","2","3","4","5","6","7","8","9","10","11","12"].map(grade => (
+                          <option key={grade} value={grade}>ป.{grade}</option>
+                        ))
+                      )}
                     </select>
                   </div>
                   <div>
@@ -447,7 +728,9 @@ export default function QuizManagePage() {
                   <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>📝 ตัวเลือก</label>
                   {formData.choices.map((choice, index) => (
                     <div key={index} className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-medium w-8" style={{ color: theme.textColor }}>{String.fromCharCode(65 + index)}.</span>
+                      <span className="text-sm font-medium w-8" style={{ color: theme.textColor }}>
+                        {String.fromCharCode(65 + index)}.
+                      </span>
                       <input
                         type="text"
                         value={choice}
@@ -466,8 +749,12 @@ export default function QuizManagePage() {
                       />
                     </div>
                   ))}
+                  
+                  {/* Correct Answer Selection */}
                   <div className="mt-4">
-                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>✅ คำตอบที่ถูก</label>
+                    <label className="block text-sm font-medium mb-2" style={{ color: theme.textColor + '80' }}>
+                      ✅ เลือกคำตอบที่ถูก
+                    </label>
                     <select
                       value={formData.correctIndex}
                       onChange={(e) => setFormData({...formData, correctIndex: parseInt(e.target.value)})}
@@ -478,9 +765,9 @@ export default function QuizManagePage() {
                         borderColor: theme.textColor + '30'
                       }}
                     >
-                      {formData.choices.map((_, index) => (
+                      {formData.choices.map((choice, index) => (
                         <option key={index} value={index}>
-                          {String.fromCharCode(65 + index)}
+                          {String.fromCharCode(65 + index)}. {choice || `ตัวเลือก ${String.fromCharCode(65 + index)}`}
                         </option>
                       ))}
                     </select>
@@ -556,7 +843,7 @@ export default function QuizManagePage() {
                         {question.topic}
                       </span>
                       <span className="text-sm bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                        ป.{question.grade}
+                        {question.grade}
                       </span>
                       <span className={`text-sm px-2 py-1 rounded-full ${
                         question.difficulty === 'easy' ? 'bg-green-100 text-green-800' :

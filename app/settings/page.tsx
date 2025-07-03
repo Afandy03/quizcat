@@ -3,13 +3,12 @@
 import { useState, useEffect } from 'react'
 import { auth, db } from '@/lib/firebase'
 import { doc, updateDoc } from 'firebase/firestore'
-import { useUserTheme, saveGuestTheme, getBackgroundStyle } from '@/lib/useTheme'
+import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
 import ThemedLayout from '@/components/ThemedLayout'
 import { motion, AnimatePresence } from 'framer-motion'
 
 export default function SettingsPage() {
   const { theme: currentTheme, isLoading } = useUserTheme()
-  const [isGuest, setIsGuest] = useState(false)
 
   const [bgColor, setBgColor] = useState<string>(currentTheme.bgColor)
   const [textColor, setTextColor] = useState<string>('#000000') // เริ่มต้นเป็นสีดำเสมอ
@@ -29,10 +28,6 @@ export default function SettingsPage() {
   ]
 
   useEffect(() => {
-    // ตรวจสอบ guest mode
-    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-    setIsGuest(isGuestMode)
-    
     setBgColor(currentTheme.bgColor)
     setTextColor(currentTheme.textColor)
   }, [currentTheme])
@@ -54,14 +49,6 @@ export default function SettingsPage() {
     }
     document.documentElement.style.setProperty('--foreground', textColor)
 
-    if (isGuest) {
-      // สำหรับ guest mode บันทึกใน localStorage
-      saveGuestTheme({ bgColor, textColor })
-
-      location.reload()
-      return
-    }
-
     const user = auth.currentUser
     if (!user) {
       alert('ยังไม่ได้ login')
@@ -82,23 +69,8 @@ export default function SettingsPage() {
 
   // --- ส่วนที่แก้ไข ---
   const handleReset = async () => {
-    const defaultBg = '#ffffff' // ค่าเริ่มต้นสำหรับ guest
-    const defaultText = '#000000' // ค่าเริ่มต้นสำหรับ guest
-
-    if (isGuest) {
-      // สำหรับ guest mode
-      setBgColor(defaultBg)
-      setTextColor(defaultText)
-      saveGuestTheme({ bgColor: defaultBg, textColor: defaultText })
-      
-      document.documentElement.style.setProperty('--background', defaultBg)
-      document.documentElement.style.setProperty('--foreground', defaultText)
-      document.body.style.background = ''
-
-      alert('🎭 รีเซ็ตธีมผู้เยี่ยมชมเป็นค่าเริ่มต้นเรียบร้อย!')
-      location.reload()
-      return
-    }
+    const defaultBg = '#ffffff' // ค่าเริ่มต้น
+    const defaultText = '#000000' // ค่าเริ่มต้น
 
     const user = auth.currentUser
     if (!user) {
@@ -147,25 +119,6 @@ export default function SettingsPage() {
           >
             🎨 ตั้งค่าธีม
           </motion.h2>
-
-          <AnimatePresence>
-            {isGuest && (
-              <motion.div 
-                className="border px-4 py-3 rounded-lg text-center mb-6"
-                style={{
-                  backgroundColor: currentTheme.textColor + '10',
-                  borderColor: currentTheme.textColor + '40',
-                  color: currentTheme.textColor
-                }}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.3 }}
-              >
-                🎭 โหมดผู้เยี่ยมชม - ธีมจะบันทึกในเครื่องของคุณเท่านั้น
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Column */}

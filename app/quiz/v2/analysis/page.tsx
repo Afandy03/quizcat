@@ -23,6 +23,165 @@ interface QuizV2Answer {
   quizSession: number
 }
 
+// Simple Bar Chart Component
+const BarChart = ({ data, maxValue, theme }: { 
+  data: { name: string; value: number; color: string }[], 
+  maxValue: number, 
+  theme: any 
+}) => (
+  <div className="space-y-3">
+    {data.map((item, index) => (
+      <div key={index} className="flex items-center gap-3">
+        <div className="w-20 text-sm" style={{ color: theme.textColor }}>
+          {item.name}
+        </div>
+        <div className="flex-1 bg-gray-200 rounded-full h-6 relative overflow-hidden">
+          <div 
+            className="h-full rounded-full transition-all duration-500 flex items-center justify-end pr-2"
+            style={{ 
+              width: `${(item.value / maxValue) * 100}%`,
+              backgroundColor: item.color
+            }}
+          >
+            <span className="text-white text-xs font-bold">
+              {item.value}%
+            </span>
+          </div>
+        </div>
+      </div>
+    ))}
+  </div>
+)
+
+// Simple Pie Chart Component
+const PieChart = ({ data, theme }: { 
+  data: { name: string; value: number; color: string }[], 
+  theme: any 
+}) => {
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+  let currentAngle = 0
+  
+  return (
+    <div className="flex items-center gap-6">
+      <div className="relative">
+        <svg width="120" height="120" className="transform -rotate-90">
+          <circle
+            cx="60"
+            cy="60"
+            r="50"
+            fill="none"
+            stroke={theme.textColor + '20'}
+            strokeWidth="20"
+          />
+          {data.map((item, index) => {
+            const percentage = (item.value / total) * 100
+            const strokeDasharray = `${percentage * 3.14} 314`
+            const strokeDashoffset = -(currentAngle * 3.14)
+            currentAngle += percentage
+            
+            return (
+              <circle
+                key={index}
+                cx="60"
+                cy="60"
+                r="50"
+                fill="none"
+                stroke={item.color}
+                strokeWidth="20"
+                strokeDasharray={strokeDasharray}
+                strokeDashoffset={strokeDashoffset}
+                className="transition-all duration-500"
+              />
+            )
+          })}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center">
+            <div className="text-lg font-bold" style={{ color: theme.textColor }}>
+              {total}
+            </div>
+            <div className="text-xs" style={{ color: theme.textColor + '80' }}>
+              ทั้งหมด
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {data.map((item, index) => (
+          <div key={index} className="flex items-center gap-2">
+            <div 
+              className="w-3 h-3 rounded-full"
+              style={{ backgroundColor: item.color }}
+            />
+            <span className="text-sm" style={{ color: theme.textColor }}>
+              {item.name}: {item.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Line Chart Component for Progress Over Time
+const LineChart = ({ data, theme }: { 
+  data: { name: string; value: number }[], 
+  theme: any 
+}) => {
+  if (data.length === 0) return null
+  
+  const maxValue = Math.max(...data.map(d => d.value))
+  const minValue = Math.min(...data.map(d => d.value))  
+  const range = maxValue - minValue || 1
+  
+  return (
+    <div className="relative h-32 w-full">
+      <svg width="100%" height="100%" className="absolute inset-0">
+        {/* Grid lines */}
+        {[0, 25, 50, 75, 100].map(y => (
+          <line
+            key={y}
+            x1="0"
+            y1={`${100 - y}%`}
+            x2="100%"
+            y2={`${100 - y}%`}
+            stroke={theme.textColor + '20'}
+            strokeWidth="1"
+          />
+        ))}
+        
+        {/* Line */}
+        <polyline
+          fill="none"
+          stroke="#10b981"
+          strokeWidth="3"
+          points={data.map((point, index) => 
+            `${(index / (data.length - 1)) * 100},${100 - ((point.value - minValue) / range) * 100}`
+          ).join(' ')}
+        />
+        
+        {/* Points */}
+        {data.map((point, index) => (
+          <circle
+            key={index}
+            cx={`${(index / (data.length - 1)) * 100}%`}
+            cy={`${100 - ((point.value - minValue) / range) * 100}%`}
+            r="4"
+            fill="#10b981"
+          />
+        ))}
+      </svg>
+      
+      {/* Y-axis labels */}
+      <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs" style={{ color: theme.textColor + '80' }}>
+        <span>{maxValue}%</span>
+        <span>{Math.round((maxValue + minValue) / 2)}%</span>
+        <span>{minValue}%</span>
+      </div>
+    </div>
+  )
+}
+
 export default function QuizV2AnalysisPage() {
   const [answers, setAnswers] = useState<QuizV2Answer[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,7 +202,7 @@ export default function QuizV2AnalysisPage() {
 
   const loadAnswers = async (userId: string) => {
     try {
-      // แยก query เพื่อหลีกเลี่ยงปัญหา composite index
+      setLoading(true)
       const q = query(
         collection(db, 'quiz_v2_answers'),
         where('userId', '==', userId)
@@ -51,9 +210,8 @@ export default function QuizV2AnalysisPage() {
       const snapshot = await getDocs(q)
       let answerData = snapshot.docs.map(doc => doc.data() as QuizV2Answer)
       
-      // เรียงข้อมูลใน client side แทน
+      // Sort by timestamp (newest first)
       answerData = answerData.sort((a, b) => {
-        // ตรวจสอบและจัดการ timestamp
         const timeA = a.timestamp?.toDate?.() || new Date(0)
         const timeB = b.timestamp?.toDate?.() || new Date(0)
         return timeB.getTime() - timeA.getTime()
@@ -67,126 +225,146 @@ export default function QuizV2AnalysisPage() {
     }
   }
 
-  const calculateOverallStats = () => {
+  // Calculate real statistics from actual data
+  const getStatistics = () => {
     if (answers.length === 0) return null
 
     const totalQuestions = answers.length
     const correctAnswers = answers.filter(a => a.isCorrect).length
-    const overallPercentage = Math.round((correctAnswers / totalQuestions) * 100)
+    const accuracy = Math.round((correctAnswers / totalQuestions) * 100)
 
     // Group by quiz sessions
-    const sessions = answers.reduce((acc, answer) => {
-      if (!acc[answer.quizSession]) {
-        acc[answer.quizSession] = []
+    const sessionMap = new Map<number, QuizV2Answer[]>()
+    answers.forEach(answer => {
+      if (!sessionMap.has(answer.quizSession)) {
+        sessionMap.set(answer.quizSession, [])
       }
-      acc[answer.quizSession].push(answer)
-      return acc
-    }, {} as Record<number, QuizV2Answer[]>)
+      sessionMap.get(answer.quizSession)!.push(answer)
+    })
 
-    const sessionStats = Object.values(sessions).map(sessionAnswers => {
+    const sessions = Array.from(sessionMap.values()).map(sessionAnswers => {
       const correct = sessionAnswers.filter(a => a.isCorrect).length
       const total = sessionAnswers.length
       const percentage = Math.round((correct / total) * 100)
-      const avgTime = Math.round(sessionAnswers.reduce((sum, a) => sum + a.timeSpent, 0) / total)
+      const avgTime = Math.round(sessionAnswers.reduce((sum, a) => sum + (a.timeSpent || 0), 0) / total)
       
       return {
         correct,
         total,
         percentage,
         avgTime,
-        timestamp: sessionAnswers[0].timestamp
+        timestamp: sessionAnswers[0]?.timestamp
       }
+    }).sort((a, b) => {
+      const timeA = a.timestamp?.toDate?.() || new Date(0)
+      const timeB = b.timestamp?.toDate?.() || new Date(0)
+      return timeA.getTime() - timeB.getTime()
     })
 
-    // Pass rate calculation
-    const passingSessions = sessionStats.filter(s => s.percentage >= 60).length
-    const passRate = Math.round((passingSessions / sessionStats.length) * 100)
+    // Subject analysis
+    const subjectStats = new Map<string, { correct: number; total: number }>()
+    answers.forEach(answer => {
+      const subject = answer.subject || 'ไม่ระบุ'
+      if (!subjectStats.has(subject)) {
+        subjectStats.set(subject, { correct: 0, total: 0 })
+      }
+      const stats = subjectStats.get(subject)!
+      stats.total++
+      if (answer.isCorrect) stats.correct++
+    })
+
+    const subjectData = Array.from(subjectStats.entries()).map(([subject, stats]) => ({
+      name: subject,
+      value: Math.round((stats.correct / stats.total) * 100),
+      color: stats.correct / stats.total >= 0.8 ? '#10b981' : 
+             stats.correct / stats.total >= 0.6 ? '#f59e0b' : '#ef4444'
+    })).sort((a, b) => b.value - a.value)
+
+    // Difficulty analysis
+    const difficultyStats = new Map<string, { correct: number; total: number }>()
+    answers.forEach(answer => {
+      const difficulty = answer.difficulty || 'medium'
+      if (!difficultyStats.has(difficulty)) {
+        difficultyStats.set(difficulty, { correct: 0, total: 0 })
+      }
+      const stats = difficultyStats.get(difficulty)!
+      stats.total++
+      if (answer.isCorrect) stats.correct++
+    })
+
+    const difficultyLabels: Record<string, string> = {
+      easy: 'ง่าย',
+      medium: 'ปานกลาง', 
+      hard: 'ยาก'
+    }
+
+    const difficultyData = Array.from(difficultyStats.entries()).map(([difficulty, stats]) => ({
+      name: difficultyLabels[difficulty] || difficulty,
+      value: stats.total,
+      color: difficulty === 'easy' ? '#10b981' : 
+             difficulty === 'medium' ? '#f59e0b' : '#ef4444'
+    }))
+
+    // Confidence analysis
+    const confidenceStats = new Map<string, { correct: number; total: number }>()
+    answers.forEach(answer => {
+      const confidence = answer.confidenceLevel || 'uncertain'
+      if (!confidenceStats.has(confidence)) {
+        confidenceStats.set(confidence, { correct: 0, total: 0 })
+      }
+      const stats = confidenceStats.get(confidence)!
+      stats.total++
+      if (answer.isCorrect) stats.correct++
+    })
+
+    const confidenceLabels: Record<string, string> = {
+      confident: 'มั่นใจ',
+      uncertain: 'ไม่แน่ใจ',
+      guess: 'เดา'
+    }
+
+    const confidenceData = Array.from(confidenceStats.entries()).map(([confidence, stats]) => ({
+      confidence,
+      label: confidenceLabels[confidence] || confidence,
+      accuracy: Math.round((stats.correct / stats.total) * 100),
+      correct: stats.correct,
+      total: stats.total,
+      color: confidence === 'confident' ? '#10b981' : 
+             confidence === 'uncertain' ? '#f59e0b' : '#ef4444'
+    }))
+
+    // Progress over time (last 10 sessions)
+    const progressData = sessions.slice(-10).map((session, index) => ({
+      name: `ครั้งที่ ${index + 1}`,
+      value: session.percentage
+    }))
 
     return {
       totalQuestions,
-      correctAnswers,
-      overallPercentage,
-      totalSessions: sessionStats.length,
-      passRate,
-      avgTimePerQuestion: Math.round(answers.reduce((sum, a) => sum + a.timeSpent, 0) / totalQuestions),
-      sessionStats: sessionStats.slice(0, 10) // Show last 10 sessions
+      correctAnswers, 
+      accuracy,
+      totalSessions: sessions.length,
+      avgTimePerQuestion: Math.round(answers.reduce((sum, a) => sum + (a.timeSpent || 0), 0) / totalQuestions),
+      subjectData,
+      difficultyData,
+      confidenceData,
+      progressData,
+      recentSessions: sessions.slice(-5).reverse() // Last 5 sessions, newest first
     }
-  }
-
-  const calculateSubjectAnalysis = () => {
-    const bySubject = answers.reduce((acc, answer) => {
-      if (!acc[answer.subject]) {
-        acc[answer.subject] = { correct: 0, total: 0, weakTopics: {} }
-      }
-      acc[answer.subject].total++
-      if (answer.isCorrect) {
-        acc[answer.subject].correct++
-      } else {
-        // Track weak topics
-        if (!acc[answer.subject].weakTopics[answer.topic]) {
-          acc[answer.subject].weakTopics[answer.topic] = { wrong: 0, total: 0 }
-        }
-        acc[answer.subject].weakTopics[answer.topic].wrong++
-      }
-      
-      // Count total for topic
-      if (!acc[answer.subject].weakTopics[answer.topic]) {
-        acc[answer.subject].weakTopics[answer.topic] = { wrong: 0, total: 0 }
-      }
-      acc[answer.subject].weakTopics[answer.topic].total++
-      
-      return acc
-    }, {} as Record<string, { correct: number; total: number; weakTopics: Record<string, { wrong: number; total: number }> }>)
-
-    // Convert to array and calculate percentages
-    return Object.entries(bySubject).map(([subject, data]) => {
-      const percentage = Math.round((data.correct / data.total) * 100)
-      
-      // Find most problematic topics (highest error rate)
-      const topicStats = Object.entries(data.weakTopics)
-        .map(([topic, stats]) => ({
-          topic,
-          errorRate: Math.round((stats.wrong / stats.total) * 100),
-          wrong: stats.wrong,
-          total: stats.total
-        }))
-        .sort((a, b) => b.errorRate - a.errorRate)
-        .slice(0, 3)
-
-      return {
-        subject,
-        percentage,
-        correct: data.correct,
-        total: data.total,
-        weakestTopics: topicStats.filter(t => t.errorRate > 0)
-      }
-    }).sort((a, b) => a.percentage - b.percentage) // Sort by weakest first
-  }
-
-  const calculateConfidenceAnalysis = () => {
-    const byConfidence = answers.reduce((acc, answer) => {
-      if (!acc[answer.confidenceLevel]) {
-        acc[answer.confidenceLevel] = { correct: 0, total: 0 }
-      }
-      acc[answer.confidenceLevel].total++
-      if (answer.isCorrect) acc[answer.confidenceLevel].correct++
-      return acc
-    }, {} as Record<string, { correct: number; total: number }>)
-
-    return Object.entries(byConfidence).map(([confidence, data]) => ({
-      confidence,
-      percentage: Math.round((data.correct / data.total) * 100),
-      correct: data.correct,
-      total: data.total
-    }))
   }
 
   if (loading) {
     return (
       <ThemedLayout>
-        <p className="p-6 text-center" style={{ color: theme.textColor }}>
-          ⏳ กำลังโหลดข้อมูล...
-        </p>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-center">
+            <div 
+              className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+              style={{ borderColor: theme.textColor }}
+            />
+            <p style={{ color: theme.textColor }}>⏳ กำลังโหลดข้อมูล...</p>
+          </div>
+        </div>
       </ThemedLayout>
     )
   }
@@ -194,26 +372,44 @@ export default function QuizV2AnalysisPage() {
   if (!user) {
     return (
       <ThemedLayout>
-        <div className="p-6 text-center">
-          <p style={{ color: theme.textColor }} className="mb-4">
-            🔐 กรุณาเข้าสู่ระบบเพื่อดูสถิติ
-          </p>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-center">
+            <div className="text-6xl mb-4">🔐</div>
+            <p style={{ color: theme.textColor }} className="text-xl mb-6">
+              กรุณาเข้าสู่ระบบเพื่อดูสถิติ
+            </p>
+            <button
+              onClick={() => window.location.href = '/login'}
+              className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+            >
+              เข้าสู่ระบบ
+            </button>
+          </div>
         </div>
       </ThemedLayout>
     )
   }
 
-  const overallStats = calculateOverallStats()
-  const subjectAnalysis = calculateSubjectAnalysis()
-  const confidenceAnalysis = calculateConfidenceAnalysis()
+  const stats = getStatistics()
 
-  if (!overallStats) {
+  if (!stats) {
     return (
       <ThemedLayout>
-        <div className="p-6 text-center">
-          <p style={{ color: theme.textColor }} className="mb-4">
-            📊 ยังไม่มีข้อมูลการทำข้อสอบ V2
-          </p>
+        <div className="flex justify-center items-center min-h-screen">
+          <div className="text-center">
+            <div className="text-6xl mb-4">📊</div>
+            <p style={{ color: theme.textColor }} className="text-xl mb-6">
+              ยังไม่มีข้อมูลการทำข้อสอบ V2
+            </p>
+            <button
+              onClick={() => window.location.href = '/quiz/v2/select'}
+              className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity"
+              style={{ backgroundColor: '#10b981', color: '#ffffff' }}
+            >
+              🚀 เริ่มทำข้อสอบ V2
+            </button>
+          </div>
         </div>
       </ThemedLayout>
     )
@@ -221,7 +417,8 @@ export default function QuizV2AnalysisPage() {
 
   return (
     <ThemedLayout>
-      <main className="p-6 max-w-6xl mx-auto space-y-8">
+      <main className="p-6 max-w-7xl mx-auto space-y-8">
+        {/* Header */}
         <div className="text-center mb-8">
           <h1 
             className="text-4xl font-bold mb-2"
@@ -230,267 +427,254 @@ export default function QuizV2AnalysisPage() {
             📈 สถิติข้อสอบ V2
           </h1>
           <p style={{ color: theme.textColor + '80' }}>
-            วิเคราะห์ผลการเรียนรู้และจุดที่ต้องพัฒนา
+            วิเคราะห์ผลการเรียนรู้จากข้อมูลจริง
           </p>
         </div>
 
-        {/* Overall Performance */}
+        {/* Overall Stats */}
         <div 
-          className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
+          className="rounded-xl p-6 shadow-lg"
+          style={{ 
+            ...getBackgroundStyle(theme.bgColor), 
+            border: `1px solid ${theme.textColor}20` 
+          }}
         >
           <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
-            🎯 ผลงานโดยรวม
+            🎯 สถิติโดยรวม
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
             <div className="text-center">
               <div 
                 className="text-4xl font-bold mb-2"
                 style={{ 
-                  color: overallStats.overallPercentage >= 80 ? '#10b981' : 
-                         overallStats.overallPercentage >= 60 ? '#f59e0b' : '#ef4444'
+                  color: stats.accuracy >= 80 ? '#10b981' : 
+                         stats.accuracy >= 60 ? '#f59e0b' : '#ef4444'
                 }}
               >
-                {overallStats.overallPercentage}%
+                {stats.accuracy}%
               </div>
-              <div style={{ color: theme.textColor + '80' }}>คะแนนเฉลี่ย</div>
-              <div style={{ color: theme.textColor + '70' }} className="text-sm">
-                {overallStats.correctAnswers}/{overallStats.totalQuestions} ข้อ
-              </div>
-            </div>
-            <div className="text-center">
-              <div 
-                className="text-4xl font-bold mb-2"
-                style={{ 
-                  color: overallStats.passRate >= 80 ? '#10b981' : 
-                         overallStats.passRate >= 60 ? '#f59e0b' : '#ef4444'
-                }}
-              >
-                {overallStats.passRate}%
-              </div>
-              <div style={{ color: theme.textColor + '80' }}>อัตราผ่าน</div>
-              <div style={{ color: theme.textColor + '70' }} className="text-sm">
-                (≥60% ถือว่าผ่าน)
-              </div>
+              <div style={{ color: theme.textColor + '80' }}>ความแม่นยำ</div>
             </div>
             <div className="text-center">
               <div 
                 className="text-4xl font-bold mb-2"
                 style={{ color: '#3b82f6' }}
               >
-                {overallStats.totalSessions}
+                {stats.totalQuestions}
               </div>
-              <div style={{ color: theme.textColor + '80' }}>ครั้งที่ทำ</div>
+              <div style={{ color: theme.textColor + '80' }}>ข้อทั้งหมด</div>
+            </div>
+            <div className="text-center">
+              <div 
+                className="text-4xl font-bold mb-2"
+                style={{ color: '#10b981' }}
+              >
+                {stats.correctAnswers}
+              </div>
+              <div style={{ color: theme.textColor + '80' }}>ตอบถูก</div>
             </div>
             <div className="text-center">
               <div 
                 className="text-4xl font-bold mb-2"
                 style={{ color: '#8b5cf6' }}
               >
-                {overallStats.avgTimePerQuestion}s
+                {stats.totalSessions}
+              </div>
+              <div style={{ color: theme.textColor + '80' }}>จำนวนครั้ง</div>
+            </div>
+            <div className="text-center">
+              <div 
+                className="text-4xl font-bold mb-2"
+                style={{ color: '#f59e0b' }}
+              >
+                {stats.avgTimePerQuestion}s
               </div>
               <div style={{ color: theme.textColor + '80' }}>เวลาเฉลี่ย/ข้อ</div>
             </div>
           </div>
         </div>
 
-        {/* Subject Weakness Analysis */}
-        <div 
-          className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
-        >
-          <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
-            📉 จุดอ่อนแต่ละวิชา
-          </h2>
-          <div className="space-y-4">
-            {subjectAnalysis.map((subject) => (
-              <div 
-                key={subject.subject}
-                className="border rounded-lg p-4"
-                style={{ borderColor: theme.textColor + '20' }}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-bold text-lg" style={{ color: theme.textColor }}>
-                    {subject.subject}
-                  </h3>
-                  <div className="flex items-center gap-3">
-                    <div 
-                      className="px-3 py-1 rounded-full text-sm font-bold"
-                      style={{ 
-                        backgroundColor: subject.percentage >= 80 ? '#10b981' : 
-                                        subject.percentage >= 60 ? '#f59e0b' : '#ef4444',
-                        color: '#ffffff'
-                      }}
-                    >
-                      {subject.percentage}%
-                    </div>
-                    <span style={{ color: theme.textColor + '70' }}>
-                      ({subject.correct}/{subject.total})
-                    </span>
-                  </div>
-                </div>
-                
-                {subject.weakestTopics.length > 0 && (
-                  <div>
-                    <h4 
-                      className="font-medium mb-2 text-sm"
-                      style={{ color: theme.textColor + '80' }}
-                    >
-                      🎯 หัวข้อที่ต้องปรับปรุง:
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {subject.weakestTopics.map((topic, idx) => (
-                        <div 
-                          key={topic.topic}
-                          className="px-3 py-2 rounded text-sm text-center"
-                          style={{ 
-                            backgroundColor: '#ef444410',
-                            border: `1px solid #ef4444`,
-                            color: '#ef4444'
-                          }}
-                        >
-                          <div className="font-medium">{topic.topic}</div>
-                          <div className="text-xs">ผิด {topic.errorRate}%</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+        {/* Charts Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Subject Performance */}
+          {stats.subjectData.length > 0 && (
+            <div 
+              className="rounded-xl p-6 shadow-lg"
+              style={{ 
+                ...getBackgroundStyle(theme.bgColor), 
+                border: `1px solid ${theme.textColor}20` 
+              }}
+            >
+              <h3 className="text-xl font-bold mb-6" style={{ color: theme.textColor }}>
+                � ผลงานแต่ละวิชา
+              </h3>
+              <BarChart 
+                data={stats.subjectData} 
+                maxValue={100} 
+                theme={theme} 
+              />
+            </div>
+          )}
+
+          {/* Question Difficulty Distribution */}
+          {stats.difficultyData.length > 0 && (
+            <div 
+              className="rounded-xl p-6 shadow-lg"
+              style={{ 
+                ...getBackgroundStyle(theme.bgColor), 
+                border: `1px solid ${theme.textColor}20` 
+              }}
+            >
+              <h3 className="text-xl font-bold mb-6" style={{ color: theme.textColor }}>
+                ⭐ การกระจายระดับความยาก
+              </h3>
+              <div className="flex justify-center">
+                <PieChart data={stats.difficultyData} theme={theme} />
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
-        {/* Confidence vs Accuracy */}
-        <div 
-          className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
-        >
-          <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
-            🧠 ความมั่นใจ vs ความถูกต้อง
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {confidenceAnalysis.map((conf) => {
-              const labels = {
-                confident: { icon: '💪', label: 'มั่นใจ', color: '#10b981' },
-                uncertain: { icon: '🤔', label: 'ไม่แน่ใจ', color: '#f59e0b' },
-                guess: { icon: '🎲', label: 'เดา', color: '#ef4444' }
-              }
-              const label = labels[conf.confidence as keyof typeof labels]
-              
-              return (
+        {/* Progress Chart */}
+        {stats.progressData.length > 1 && (
+          <div 
+            className="rounded-xl p-6 shadow-lg"
+            style={{ 
+              ...getBackgroundStyle(theme.bgColor), 
+              border: `1px solid ${theme.textColor}20` 
+            }}
+          >
+            <h3 className="text-xl font-bold mb-6" style={{ color: theme.textColor }}>
+              📈 ความก้าวหน้าตามเวลา
+            </h3>
+            <LineChart data={stats.progressData} theme={theme} />
+          </div>
+        )}
+
+        {/* Confidence Analysis */}
+        {stats.confidenceData.length > 0 && (
+          <div 
+            className="rounded-xl p-6 shadow-lg"
+            style={{ 
+              ...getBackgroundStyle(theme.bgColor), 
+              border: `1px solid ${theme.textColor}20` 
+            }}
+          >
+            <h3 className="text-xl font-bold mb-6" style={{ color: theme.textColor }}>
+              🧠 การวิเคราะห์ความมั่นใจ
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {stats.confidenceData.map((conf) => (
                 <div 
                   key={conf.confidence}
                   className="text-center p-6 rounded-lg"
                   style={{ 
                     backgroundColor: theme.textColor + '05',
-                    border: `2px solid ${(label?.color || '#999999')}40`
+                    border: `2px solid ${conf.color}40`
                   }}
                 >
-                  <div className="text-4xl mb-3">{label?.icon || '❓'}</div>
-                  <h3 className="font-bold mb-2" style={{ color: theme.textColor }}>
-                    {label?.label || conf.confidence}
-                  </h3>
+                  <div className="text-4xl mb-3">
+                    {conf.confidence === 'confident' ? '💪' : 
+                     conf.confidence === 'uncertain' ? '🤔' : '🎲'}
+                  </div>
+                  <h4 className="font-bold mb-2" style={{ color: theme.textColor }}>
+                    {conf.label}
+                  </h4>
                   <div 
                     className="text-3xl font-bold mb-2"
-                    style={{ color: label?.color || '#999999' }}
+                    style={{ color: conf.color }}
                   >
-                    {conf.percentage}%
+                    {conf.accuracy}%
                   </div>
                   <div style={{ color: theme.textColor + '70' }}>
-                    ถูก {conf.correct}/{conf.total} ข้อ
-                  </div>
-                  
-                  {/* Analysis */}
-                  <div 
-                    className="mt-3 p-2 rounded text-xs"
-                    style={{ backgroundColor: theme.textColor + '10' }}
-                  >
-                    {conf.confidence === 'confident' && conf.percentage < 80 && (
-                      <span style={{ color: '#ef4444' }}>
-                        ⚠️ มั่นใจเกินไป ควรระวัง
-                      </span>
-                    )}
-                    {conf.confidence === 'guess' && conf.percentage > 60 && (
-                      <span style={{ color: '#10b981' }}>
-                        🍀 เดาเก่ง! ลองเชื่อใจตัวเองมากขึ้น
-                      </span>
-                    )}
-                    {conf.confidence === 'uncertain' && conf.percentage > 70 && (
-                      <span style={{ color: '#10b981' }}>
-                        💡 ความรู้ดีแล้ว เพิ่มความมั่นใจ
-                      </span>
-                    )}
+                    {conf.correct}/{conf.total} ข้อ
                   </div>
                 </div>
-              )
-            })}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Recent Sessions */}
-        <div 
-          className="rounded-lg p-6"
-          style={{ ...getBackgroundStyle(theme.bgColor), border: `1px solid ${theme.textColor}20` }}
-        >
-          <h2 className="text-2xl font-bold mb-6" style={{ color: theme.textColor }}>
-            📊 ประวัติการทำข้อสอบล่าสุด
-          </h2>
-          <div className="space-y-3">
-            {overallStats.sessionStats.map((session, sessionIndex) => (
-              <div 
-                key={sessionIndex}
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{ backgroundColor: theme.textColor + '05' }}
-              >
-                <div>
-                  <span style={{ color: theme.textColor }}>
-                    ครั้งที่ {overallStats.sessionStats.length - sessionIndex}
-                  </span>
-                  <span 
-                    className="ml-3 text-sm"
-                    style={{ color: theme.textColor + '70' }}
-                  >
-                    {session.timestamp?.toDate?.()?.toLocaleDateString('th-TH') || 'ไม่ทราบวันที่'}
-                  </span>
+        {stats.recentSessions.length > 0 && (
+          <div 
+            className="rounded-xl p-6 shadow-lg"
+            style={{ 
+              ...getBackgroundStyle(theme.bgColor), 
+              border: `1px solid ${theme.textColor}20` 
+            }}
+          >
+            <h3 className="text-xl font-bold mb-6" style={{ color: theme.textColor }}>
+              📊 ประวัติการทำข้อสอบล่าสุด
+            </h3>
+            <div className="space-y-3">
+              {stats.recentSessions.map((session, index) => (
+                <div 
+                  key={index}
+                  className="flex items-center justify-between p-4 rounded-lg"
+                  style={{ backgroundColor: theme.textColor + '05' }}
+                >
+                  <div>
+                    <span style={{ color: theme.textColor }}>
+                      ครั้งที่ {stats.recentSessions.length - index}
+                    </span>
+                    <span 
+                      className="ml-3 text-sm"
+                      style={{ color: theme.textColor + '70' }}
+                    >
+                      {session.timestamp?.toDate?.()?.toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: 'short', 
+                        day: 'numeric'
+                      }) || 'ไม่ทราบวันที่'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span 
+                      className="font-bold text-lg px-3 py-1 rounded-full"
+                      style={{ 
+                        backgroundColor: session.percentage >= 80 ? '#10b981' : 
+                                        session.percentage >= 60 ? '#f59e0b' : '#ef4444',
+                        color: '#ffffff'
+                      }}
+                    >
+                      {session.percentage}%
+                    </span>
+                    <span style={{ color: theme.textColor + '70' }}>
+                      {session.correct}/{session.total} ข้อ
+                    </span>
+                    <span style={{ color: theme.textColor + '70' }}>
+                      ⏱️ {session.avgTime}s/ข้อ
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <span 
-                    className="font-bold"
-                    style={{ 
-                      color: session.percentage >= 80 ? '#10b981' : 
-                             session.percentage >= 60 ? '#f59e0b' : '#ef4444'
-                    }}
-                  >
-                    {session.percentage}%
-                  </span>
-                  <span style={{ color: theme.textColor + '70' }}>
-                    ({session.correct}/{session.total})
-                  </span>
-                  <span style={{ color: theme.textColor + '70' }}>
-                    ⏱️ {session.avgTime}s/ข้อ
-                  </span>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Action Buttons */}
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-wrap gap-4 justify-center">
           <button
             onClick={() => window.location.href = '/quiz/v2/select'}
-            className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity"
+            className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity shadow-lg"
             style={{ backgroundColor: '#10b981', color: '#ffffff' }}
           >
             🚀 ทำข้อสอบ V2 อีกครั้ง
           </button>
           <button
             onClick={() => window.location.href = '/dashboard'}
-            className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity"
+            className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity shadow-lg"
             style={{ backgroundColor: theme.textColor + '20', color: theme.textColor }}
           >
             🏠 กลับหน้าหลัก
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-6 py-3 rounded-lg font-medium hover:opacity-80 transition-opacity shadow-lg"
+            style={{ backgroundColor: '#3b82f6', color: '#ffffff' }}
+          >
+            🔄 รีเฟรชข้อมูล
           </button>
         </div>
       </main>

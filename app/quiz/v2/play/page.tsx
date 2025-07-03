@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, getDocs, addDoc, serverTimestamp, doc, getDoc, updateDoc, increment } from 'firebase/firestore'
 import { onAuthStateChanged } from 'firebase/auth'
 import { auth, db } from '@/lib/firebase'
 import { useUserTheme, getBackgroundStyle } from '@/lib/useTheme'
@@ -16,7 +16,7 @@ interface Question {
   correctIndex: number
   subject: string
   topic: string
-  grade: number
+  grade: string | number  // รองรับทั้ง string และ number
   difficulty: 'easy' | 'medium' | 'hard'
   explanation?: string
 }
@@ -42,28 +42,33 @@ export default function QuizV2PlayPage() {
   const [confidenceLevel, setConfidenceLevel] = useState<'guess' | 'uncertain' | 'confident' | null>(null)
   const [timeStart, setTimeStart] = useState<number>(Date.now())
   const [questionStartTime, setQuestionStartTime] = useState<number>(Date.now())
+  const [elapsedTime, setElapsedTime] = useState<number>(0); // เพิ่ม state สำหรับเวลาข้อปัจจุบัน
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showResult, setShowResult] = useState(false)
   const [user, setUser] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showChatBot, setShowChatBot] = useState(false)
+  const [pointsEarned, setPointsEarned] = useState(0)
 
   const { theme, isLoading } = useUserTheme()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // อัปเดต elapsedTime แบบเรียลไทม์
+  useEffect(() => {
+    setElapsedTime(Math.round((Date.now() - questionStartTime) / 1000));
+    const interval = setInterval(() => {
+      setElapsedTime(Math.round((Date.now() - questionStartTime) / 1000));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [questionStartTime]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u)
       
       if (!u) {
-        const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-        if (!isGuestMode) {
-          router.push('/login')
-        }
-      } else {
-        localStorage.removeItem('quizcat-guest-mode')
+        router.push('/login')
       }
     })
     return () => unsubscribe()
@@ -91,7 +96,39 @@ export default function QuizV2PlayPage() {
           questionList = questionList.filter(q => q.topic === topic)
         }
         if (grade) {
-          questionList = questionList.filter(q => q.grade === parseInt(grade))
+          questionList = questionList.filter(q => {
+            // เปรียบเทียบแบบตรงไปตรงมาก่อน (สำหรับข้อความ)
+            if (q.grade === grade) {
+              return true;
+            }
+
+            // ถ้าไม่ตรงกัน ลองแปลงเป็นตัวเลขเปรียบเทียบ (สำหรับตัวเลข)
+            let questionGradeNum = -1;
+            let selectedGradeNum = -1;
+
+            // แปลงค่า grade ของข้อสอบ
+            if (typeof q.grade === 'number') {
+              questionGradeNum = q.grade;
+            } else if (typeof q.grade === 'string') {
+              const num = parseInt(q.grade.replace('ป.', ''));
+              if (!isNaN(num)) {
+                questionGradeNum = num;
+              }
+            }
+
+            // แปลงค่า grade ที่เลือก
+            if (typeof grade === 'string') {
+              const num = parseInt(grade.replace('ป.', ''));
+              if (!isNaN(num)) {
+                selectedGradeNum = num;
+              }
+            } else if (typeof grade === 'number') {
+              selectedGradeNum = grade;
+            }
+
+            // เปรียบเทียบตัวเลข (ถ้าแปลงได้)
+            return questionGradeNum !== -1 && selectedGradeNum !== -1 && questionGradeNum === selectedGradeNum;
+          })
         }
 
         // Shuffle and limit questions
@@ -170,9 +207,105 @@ export default function QuizV2PlayPage() {
       setConfidenceLevel(null)
       setQuestionStartTime(Date.now())
     } else {
+      // Quiz completed - calculate and award points
+      await awardPoints()
       setShowResult(true)
     }
     setIsSubmitting(false)
+  }
+
+  const awardPoints = async () => {
+    if (!user) return // ไม่ให้แต้มถ้าไม่ได้ล็อกอิน
+    
+    try {
+      const allAnswers = [...answers, {
+        questionId: questions[currentIndex].id,
+        question: questions[currentIndex].question,
+        selectedIndex: selectedChoice!,
+        correctIndex: questions[currentIndex].correctIndex,
+        isCorrect: selectedChoice === questions[currentIndex].correctIndex,
+        confidenceLevel: confidenceLevel!,
+        timeSpent: Math.round((Date.now() - questionStartTime) / 1000),
+        subject: questions[currentIndex].subject || 'ไม่ระบุ',
+        topic: questions[currentIndex].topic || 'ไม่ระบุ',
+        difficulty: questions[currentIndex].difficulty || 'medium'
+      }]
+      
+      const correctAnswers = allAnswers.filter(a => a.isCorrect).length
+      const totalQuestions = allAnswers.length
+      const percentage = Math.round((correctAnswers / totalQuestions) * 100)
+      
+      // คำนวณแต้มที่ได้รับ
+      let pointsEarned = 0
+      
+      // แต้มพื้นฐานตามจำนวนข้อที่ถูก (ลดลง)
+      pointsEarned += correctAnswers * 1
+      
+      // โบนัสตามเปอร์เซ็นต์ (ลดลงและเพิ่มเงื่อนไข)
+      if (percentage >= 95) {
+        pointsEarned += 15 // โบนัสสำหรับคะแนนเกือบเต็ม (ลดจาก 20)
+      } else if (percentage >= 85) {
+        pointsEarned += 10 // โบนัสสำหรับคะแนนดี (ลดจาก 15)
+      } else if (percentage >= 75) {
+        pointsEarned += 6 // โบนัสสำหรับผ่านเกณฑ์ (ลดจาก 10)
+      } else if (percentage >= 65) {
+        pointsEarned += 3 // โบนัสเล็กน้อย (ลดจาก 5)
+      }
+      
+      // โบนัสตามความยาก (ลดลง)
+      allAnswers.forEach(answer => {
+        if (answer.isCorrect) {
+          if (answer.difficulty === 'hard') {
+            pointsEarned += 2 // ลดจาก 3
+          } else if (answer.difficulty === 'medium') {
+            pointsEarned += 1 // ลดจาก 2
+          }
+          // ไม่ให้โบนัสสำหรับ easy แล้ว
+        }
+      })
+      
+      // โบนัสตามความมั่นใจ (เหมือนเดิม แต่ต้องตอบถูกอย่างน้อย 70%)
+      const confidentCorrect = allAnswers.filter(a => a.isCorrect && a.confidenceLevel === 'confident').length
+      if (percentage >= 70) {
+        pointsEarned += Math.floor(confidentCorrect * 0.5) // ลดจาก 1 เป็น 0.5 และปัดลง
+      }
+      
+      // เพิ่มเงื่อนไข: ต้องทำได้อย่างน้อย 50% ถึงจะได้แต้ม
+      if (percentage < 50) {
+        pointsEarned = 0
+      }
+      
+      // อัปเดตแต้มในฐานข้อมูล
+      if (pointsEarned > 0) {
+        const userRef = doc(db, 'users', user.uid)
+        await updateDoc(userRef, {
+          points: increment(pointsEarned)
+        })
+        
+        // บันทึกประวัติการได้แต้ม
+        await addDoc(collection(db, 'point_history'), {
+          userId: user.uid,
+          userEmail: user.email || '',
+          points: pointsEarned,
+          reason: 'quiz_completion',
+          quizDetails: {
+            totalQuestions,
+            correctAnswers,
+            percentage,
+            subjects: [...new Set(allAnswers.map(a => a.subject))],
+            difficulties: [...new Set(allAnswers.map(a => a.difficulty))]
+          },
+          timestamp: serverTimestamp(),
+          quizSession: timeStart
+        })
+        
+        console.log(`ได้แต้ม: ${pointsEarned} แต้ม`)
+        setPointsEarned(pointsEarned) // เก็บแต้มที่ได้รับเพื่อแสดงผล
+      }
+      
+    } catch (error) {
+      console.error('Error awarding points:', error)
+    }
   }
 
   const calculateStats = () => {
@@ -264,6 +397,19 @@ export default function QuizV2PlayPage() {
             <p style={{ color: theme.textColor + '80' }}>
               ตอบถูก {stats.correctAnswers} จาก {stats.totalQuestions} ข้อ
             </p>
+            {user && pointsEarned > 0 && (
+              <div 
+                className="mt-4 p-4 rounded-lg border-2"
+                style={{ 
+                  backgroundColor: '#10b981' + '20',
+                  borderColor: '#10b981',
+                  color: '#10b981'
+                }}
+              >
+                <div className="text-2xl font-bold">🏆 +{pointsEarned} แต้ม!</div>
+                <div className="text-sm">ได้รับแต้มจากการทำข้อสอบ</div>
+              </div>
+            )}
           </div>
 
           {/* Overall Stats */}
@@ -575,7 +721,7 @@ export default function QuizV2PlayPage() {
           className="text-center text-sm"
           style={{ color: theme.textColor + '70' }}
         >
-          ⏱️ เวลาที่ใช้: {Math.round((Date.now() - questionStartTime) / 1000)} วินาที
+          ⏱️ เวลาที่ใช้: {elapsedTime} วินาที
         </div>
 
         {/* ChatBot Button */}

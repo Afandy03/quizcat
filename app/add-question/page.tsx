@@ -31,13 +31,6 @@ export default function AddQuestionPage() {
   };
 
   useEffect(() => {
-    // ตรวจสอบ guest mode - ไม่อนุญาตให้ guest เพิ่มข้อสอบ
-    const isGuestMode = localStorage.getItem('quizcat-guest-mode') === 'true'
-    if (isGuestMode) {
-      router.push("/dashboard");
-      return;
-    }
-
     const loadMeta = async () => {
       const snap = await getDocs(collection(db, "questions"));
       const subSet = new Set<string>();
