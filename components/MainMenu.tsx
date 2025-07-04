@@ -9,7 +9,7 @@ import { useUserTheme, getBackgroundStyle } from "@/lib/useTheme"
 const menuItems = [
   // 🔹 พื้นฐาน
   { label: "แดชบอร์ด", path: "/dashboard", icon: "🏠" },
-  { label: "ทำข้อสอบ V2", path: "/quiz/v2/select", icon: "🚀" },
+  { label: "ทำข้อสอบ", path: "/quiz/v2/select", icon: "🚀" },
 
   // 🔹 ของรางวัล
   { label: "แลกของรางวัล", path: "/rewards", icon: "🎁" },
@@ -23,7 +23,7 @@ const menuItems = [
 
   // 🔹 แอดมิน
   { label: "แอดมิน", path: "/admin/users", icon: "🛠️" },
-  { label: "สถิติข้อสอบ V2", path: "/quiz/v2/analysis", icon: "📈" },
+  { label: "สถิติข้อสอบ", path: "/quiz/v2/analysis", icon: "📈" },
   
   // 🔹 ออกจากระบบ
   { label: "ออกจากระบบ", path: "/login", icon: "🚪" },

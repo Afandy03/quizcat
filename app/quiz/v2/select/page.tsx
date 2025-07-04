@@ -230,7 +230,7 @@ export default function QuizV2SelectPage() {
             className="text-4xl font-bold mb-2"
             style={{ color: theme.textColor }}
           >
-            🚀 ทำข้อสอบ V2
+            🚀 ทำข้อสอบ
           </h1>
           <p 
             className="text-lg"
@@ -238,16 +238,7 @@ export default function QuizV2SelectPage() {
           >
             ระบบวิเคราะห์ขั้นสูง พร้อมสถิติแบบละเอียด
           </p>
-          <motion.div 
-            className="inline-block px-4 py-2 rounded-full mt-2"
-            whileHover={{ scale: 1.05 }}
-            style={{
-              backgroundColor: '#3b82f6',
-              color: '#ffffff'
-            }}
-          >
-            ✨ NEW FEATURES ✨
-          </motion.div>
+          {/* ✨ NEW FEATURES ✨ removed as requested */}
         </motion.div>
 
         <div 
@@ -267,7 +258,7 @@ export default function QuizV2SelectPage() {
                 onClick={resetFilters}
                 className="px-4 py-2 rounded-xl text-sm bg-red-500 text-white hover:bg-red-600 transition-all"
               >
-                🔄 ล้างทั้งหมด
+                🔄 รีเซ็ททั้งหมด
               </button>
             </div>
           </div>
@@ -603,7 +594,7 @@ export default function QuizV2SelectPage() {
             {!hasFilter ? '🔍 เลือกเงื่อนไขก่อน' :
              filteredQuestions.length === 0 ? '❌ ไม่พบข้อสอบ' :
              questionCount > filteredQuestions.length ? `⚠️ มีข้อสอบเพียง ${filteredQuestions.length} ข้อ` :
-             '🚀 เริ่มทำข้อสอบ V2'}
+             '🚀 เริ่มทำข้อสอบ'}
           </motion.button>
         </div>
 

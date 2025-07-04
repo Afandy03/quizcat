@@ -52,7 +52,7 @@ const questions = await (await import('/lib/firebase.js')).getDocs(
    - ตัวเลือก: กรอกข้อมูลครบ
    - บันทึก
 
-3. เปิดหน้า "ทำข้อสอบ V2" (/quiz/v2/select)
+3. เปิดหน้า "ทำข้อสอบ" (/quiz/v2/select)
 4. ทดสอบการกรอง:
    - เลือกวิชา "ทดสอบ"
    - เลือกระดับชั้น "ป.4"

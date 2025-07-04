@@ -50,6 +50,12 @@ export default function QuizV2PlayPage() {
   const [error, setError] = useState<string | null>(null)
   const [showChatBot, setShowChatBot] = useState(false)
   const [pointsEarned, setPointsEarned] = useState(0)
+  
+  // Anti-cheat states
+  const [minTimePerQuestion] = useState(3) // ขั้นต่ำ 3 วินาทีต่อข้อ
+  const [isQuestionReady, setIsQuestionReady] = useState(false)
+  const [hasInteracted, setHasInteracted] = useState(false)
+  const [suspiciousActivity, setSuspiciousActivity] = useState(0)
 
   const { theme, isLoading } = useUserTheme()
   const router = useRouter()
@@ -62,6 +68,41 @@ export default function QuizV2PlayPage() {
     }, 1000);
     return () => clearInterval(interval);
   }, [questionStartTime]);
+
+  // Anti-cheat: ป้องกันการตอบเร็วเกินไป
+  useEffect(() => {
+    setIsQuestionReady(false)
+    setHasInteracted(false)
+    
+    const timer = setTimeout(() => {
+      setIsQuestionReady(true)
+    }, minTimePerQuestion * 1000)
+    
+    return () => clearTimeout(timer)
+  }, [currentIndex, minTimePerQuestion])
+
+  // Anti-cheat: ตรวจจับการออกจากหน้าต่าง
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setSuspiciousActivity(prev => prev + 1)
+        console.warn('⚠️ ตรวจพบการออกจากหน้าต่าง')
+      }
+    }
+    
+    const handleBlur = () => {
+      setSuspiciousActivity(prev => prev + 1)
+      console.warn('⚠️ ตรวจพบการสลับหน้าต่าง')
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('blur', handleBlur)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, [])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -156,9 +197,28 @@ export default function QuizV2PlayPage() {
   const handleAnswer = async () => {
     if (selectedChoice === null || confidenceLevel === null || isSubmitting) return
 
+    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
+    
+    // Anti-cheat validations
+    if (timeSpent < minTimePerQuestion) {
+      alert(`⚠️ กรุณาใช้เวลาอ่านโจทย์อย่างน้อย ${minTimePerQuestion} วินาที`)
+      return
+    }
+    
+    if (!hasInteracted) {
+      setSuspiciousActivity(prev => prev + 1)
+      alert('⚠️ กรุณาอ่านโจทย์ก่อนตอบ')
+      return
+    }
+    
+    if (suspiciousActivity >= 3) {
+      alert('⚠️ ตรวจพบกิจกรรมน่าสงสัย การทำข้อสอบจะถูกยกเลิก')
+      router.push('/dashboard')
+      return
+    }
+
     setIsSubmitting(true)
     const question = questions[currentIndex]
-    const timeSpent = Math.round((Date.now() - questionStartTime) / 1000)
     const isCorrect = selectedChoice === question.correctIndex
 
     const answer: Answer = {
@@ -186,6 +246,9 @@ export default function QuizV2PlayPage() {
           userEmail: user.email || '',
           timestamp: serverTimestamp(),
           quizSession: timeStart,
+          // เพิ่มข้อมูล anti-cheat
+          suspiciousActivity,
+          hasInteracted,
           // ให้แน่ใจว่าไม่มีค่า undefined
           subject: answer.subject || 'ไม่ระบุ',
           topic: answer.topic || 'ไม่ระบุ',
@@ -275,6 +338,20 @@ export default function QuizV2PlayPage() {
         pointsEarned = 0
       }
       
+      // Anti-cheat: ลดแต้มถ้ามีกิจกรรมน่าสงสัย
+      if (suspiciousActivity > 0) {
+        pointsEarned = Math.floor(pointsEarned * (1 - (suspiciousActivity * 0.2)))
+        console.warn(`⚠️ ลดแต้มเนื่องจากกิจกรรมน่าสงสัย: ${suspiciousActivity} ครั้ง`)
+      }
+      
+      // Anti-cheat: ตรวจสอบเวลาเฉลี่ยต่อข้อ
+      const totalTime = Math.round((Date.now() - timeStart) / 1000)
+      const avgTimePerQuestion = Math.round(totalTime / totalQuestions)
+      if (avgTimePerQuestion < minTimePerQuestion) {
+        pointsEarned = Math.floor(pointsEarned * 0.5)
+        console.warn('⚠️ ลดแต้มเนื่องจากเวลาเฉลี่ยต่อข้อต่ำเกินไป')
+      }
+      
       // อัปเดตแต้มในฐานข้อมูล
       if (pointsEarned > 0) {
         const userRef = doc(db, 'users', user.uid)
@@ -293,7 +370,11 @@ export default function QuizV2PlayPage() {
             correctAnswers,
             percentage,
             subjects: [...new Set(allAnswers.map(a => a.subject))],
-            difficulties: [...new Set(allAnswers.map(a => a.difficulty))]
+            difficulties: [...new Set(allAnswers.map(a => a.difficulty))],
+            // เพิ่มข้อมูล anti-cheat
+            suspiciousActivity,
+            avgTimePerQuestion,
+            totalTime
           },
           timestamp: serverTimestamp(),
           quizSession: timeStart
@@ -383,7 +464,7 @@ export default function QuizV2PlayPage() {
               className="text-4xl font-bold mb-2"
               style={{ color: theme.textColor }}
             >
-              🎯 ผลการทำข้อสอบ V2
+              🎯 ผลการทำข้อสอบ
             </h1>
             <div 
               className="text-6xl font-bold mb-4"
@@ -647,19 +728,26 @@ export default function QuizV2PlayPage() {
                   onClick={() => {
                     setSelectedChoice(index);
                     setConfidenceLevel(null);
+                    setHasInteracted(true); // ทำเครื่องหมายว่าผู้ใช้มีปฏิสัมพันธ์แล้ว
                   }}
-                  className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02]"
+                  disabled={!isQuestionReady || isSubmitting}
+                  className="w-full text-left p-4 rounded-lg border-2 transition-all duration-200 hover:scale-[1.02] disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{
                     backgroundColor: isSelected ? theme.textColor + '10' : 'transparent',
                     borderColor: isSelected ? '#3b82f6' : theme.textColor + '30',
                     color: theme.textColor,
-                    opacity: isSubmitting ? 0.7 : 1
+                    opacity: isSubmitting || !isQuestionReady ? 0.7 : 1
                   }}
                 >
                   <span className="font-medium mr-3">
                     {String.fromCharCode(65 + index)}.
                   </span>
                   {choice}
+                  {!isQuestionReady && (
+                    <span className="ml-2 text-xs opacity-60">
+                      (รอ {minTimePerQuestion - elapsedTime} วิ)
+                    </span>
+                  )}
                 </button>
               )
             })}
@@ -718,10 +806,20 @@ export default function QuizV2PlayPage() {
 
         {/* Current Stats */}
         <div 
-          className="text-center text-sm"
+          className="text-center text-sm space-y-1"
           style={{ color: theme.textColor + '70' }}
         >
-          ⏱️ เวลาที่ใช้: {elapsedTime} วินาที
+          <div>⏱️ เวลาที่ใช้: {elapsedTime} วินาที</div>
+          {!isQuestionReady && (
+            <div style={{ color: '#f59e0b' }}>
+              ⚠️ รอให้อ่านโจทย์อย่างน้อย {minTimePerQuestion} วินาที
+            </div>
+          )}
+          {suspiciousActivity > 0 && (
+            <div style={{ color: '#ef4444' }}>
+              ⚠️ กิจกรรมน่าสงสัย: {suspiciousActivity} ครั้ง
+            </div>
+          )}
         </div>
 
         {/* ChatBot Button */}

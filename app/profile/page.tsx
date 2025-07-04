@@ -192,7 +192,7 @@ export default function ProfilePage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2 text-lg font-bold" style={{ color: theme.textColor }}>
-                  <span>🏆</span>
+                  <span>🪙</span>
                   <span>{points} แต้ม</span>
                 </div>
               </div>
@@ -341,7 +341,7 @@ export default function ProfilePage() {
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="text-2xl">🏆</div>
+                      <div className="text-2xl">🪙</div>
                       <div>
                         <div className="text-2xl font-bold" style={{ color: theme.textColor }}>
                           {points}
@@ -408,8 +408,8 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-3">
                         <span className="text-xl">🧠</span>
                         <div>
-                          <div className="font-bold">เริ่มทำควิซ</div>
-                          <div className="text-sm opacity-70">ทำควิซเพื่อเก็บแต้ม</div>
+                          <div className="font-bold">เริ่มทำข้อสอบ</div>
+                          <div className="text-sm opacity-70">ทำข้อสอบเพื่อเก็บแต้ม</div>
                         </div>
                       </div>
                     </button>
