@@ -61,6 +61,17 @@ export default function RewardsPage() {
         // ดึงรายการของรางวัลทั้งหมด
         const snap = await getDocs(collection(db, "rewards"))
         const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+        
+        // Debug: ตรวจสอบข้อมูลรางวัลที่ได้
+        console.log('Fetched rewards:', items);
+        items.forEach((item: any, index: number) => {
+          console.log(`Reward ${index + 1}:`, {
+            name: item.name,
+            imageUrl: item.imageUrl,
+            cost: item.cost
+          });
+        });
+        
         setRewards(items)
       } catch (error) {
         console.error("Error fetching rewards data:", error)
@@ -224,29 +235,30 @@ export default function RewardsPage() {
                     
                     {/* Reward image */}
                     <div className="relative aspect-[4/3] w-full bg-gray-100">
-                      {r.imageUrl && r.imageUrl.startsWith("http") ? (
+                      {r.imageUrl ? (
                         <Image
                           src={r.imageUrl.trim()}
-                          alt={r.name}
+                          alt={r.name || 'Reward image'}
                           fill
                           className="object-cover"
                           placeholder="blur"
                           blurDataURL="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjVmNWY1Ii8+PC9zdmc+"
-                          onError={() => {
-                            // เมื่อโหลดรูปล้มเหลว จะไม่แสดงข้อผิดพลาดและใช้ fallback จากการจัดการใน CSS
-                            const imgElements = document.querySelectorAll(`[alt="${r.name}"]`);
-                            imgElements.forEach(img => {
-                              img.classList.add('reward-image-error');
-                            });
+                          onError={(e) => {
+                            console.error('Image load error for:', r.imageUrl);
+                            // ใช้ fallback image เมื่อรูปโหลดไม่ได้
+                            e.currentTarget.src = "https://i.pinimg.com/564x/bd/ce/45/bdce4587851a6ebe571e71f00de7743f.jpg";
+                          }}
+                          onLoad={() => {
+                            console.log('Image loaded successfully:', r.imageUrl);
                           }}
                         />
                       ) : (
-                        <Image
-                          src="https://i.pinimg.com/564x/bd/ce/45/bdce4587851a6ebe571e71f00de7743f.jpg"
-                          alt={r.name}
-                          fill
-                          className="object-cover"
-                        />
+                        <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: theme.textColor + '10' }}>
+                          <div className="text-center">
+                            <span className="text-4xl">🎁</span>
+                            <p className="mt-2 text-sm" style={{ color: theme.textColor + '50' }}>ไม่มีรูป</p>
+                          </div>
+                        </div>
                       )}
                       {expired && (
                         <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
