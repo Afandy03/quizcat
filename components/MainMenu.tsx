@@ -38,6 +38,14 @@ export default function MainMenu() {
     setMounted(true)
   }, [])
 
+  // หน้าที่ไม่ต้องแสดง MainMenu
+  const hiddenPages = ['/login', '/']
+  
+  // ถ้าอยู่ในหน้าที่ต้องซ่อน ไม่แสดง MainMenu
+  if (hiddenPages.includes(currentPath)) {
+    return null
+  }
+
   // Memoize สีต่างๆ เพื่อป้องกันการคำนวณใหม่ทุกครั้ง
   const menuColors = useMemo(() => {
     // ถ้าเป็น gradient ใช้สีขาวโปร่งใสเป็น background
