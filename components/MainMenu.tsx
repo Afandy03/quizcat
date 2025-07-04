@@ -34,18 +34,8 @@ export default function MainMenu() {
   const [mounted, setMounted] = useState(false)
   const { theme, isLoading } = useUserTheme()
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  // หน้าที่ไม่ต้องแสดง MainMenu
-  const hiddenPages = ['/login', '/']
+  // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL LOGIC
   
-  // ถ้าอยู่ในหน้าที่ต้องซ่อน ไม่แสดง MainMenu
-  if (hiddenPages.includes(currentPath)) {
-    return null
-  }
-
   // Memoize สีต่างๆ เพื่อป้องกันการคำนวณใหม่ทุกครั้ง
   const menuColors = useMemo(() => {
     // ถ้าเป็น gradient ใช้สีขาวโปร่งใสเป็น background
@@ -114,26 +104,57 @@ export default function MainMenu() {
     return brightness < 128 ? '#ffffff' : '#000000'
   }, [])
 
-  // แสดง loading หรือป้องกันการ render ก่อนที่ auth state จะพร้อม
-  // Default styles for hydration
-  const defaultNavStyle = {
-    backgroundColor: "#ffffff",
-    borderColor: "#00000030",
-    color: "#000000"
-  }
+  useEffect(() => {
+    setMounted(true)
+    // Debug การ mount และ path
+    console.log('MainMenu mounted, current path:', currentPath)
+  }, [currentPath])
 
+  // NOW WE CAN HAVE CONDITIONAL LOGIC AFTER ALL HOOKS
+  
+  // Debug: ดู currentPath
+  console.log('MainMenu Debug - Current path:', currentPath)
+  console.log('MainMenu Debug - Window location:', typeof window !== 'undefined' ? window.location.pathname : 'server-side')
+  
+  // ฟังก์ชันตรวจสอบว่าควรซ่อนเมนูหรือไม่
+  const shouldHideMenu = () => {
+    // ถ้า path ว่าง หรือเป็น root
+    if (!currentPath || currentPath === '' || currentPath === '/') {
+      return true
+    }
+    
+    // ถ้า path เป็น login ในรูปแบบต่างๆ
+    if (currentPath === '/login' || 
+        currentPath === '/login/' || 
+        currentPath.startsWith('/login/') ||
+        currentPath.includes('/login')) {
+      return true
+    }
+    
+    // หน้าอื่นๆ ที่ต้องซ่อนเมนู
+    const hiddenPages = ['/index', '/index.html']
+    for (const hiddenPage of hiddenPages) {
+      if (currentPath === hiddenPage || 
+          currentPath === hiddenPage + '/' ||
+          currentPath.startsWith(hiddenPage + '/')) {
+        return true
+      }
+    }
+    
+    return false
+  }
+  
+  // ถ้าอยู่ในหน้าที่ต้องซ่อน ไม่แสดง MainMenu
+  if (shouldHideMenu()) {
+    console.log('MainMenu Debug - Hiding menu for path:', currentPath)
+    return null
+  }
+  
+  console.log('MainMenu Debug - Showing menu for path:', currentPath)
+
+  // แสดง loading หรือป้องกันการ render ก่อนที่ auth state จะพร้อม
   if (!mounted || isLoading) {
-    return (
-      <nav 
-        className="fixed top-4 left-4 rounded-xl shadow-lg border p-4 space-y-1 w-52 z-50"
-        style={defaultNavStyle}
-        suppressHydrationWarning
-      >
-        <div className="text-center py-4">
-          <div className="animate-pulse">⏳ โหลด...</div>
-        </div>
-      </nav>
-    )
+    return null
   }
 
   return (
